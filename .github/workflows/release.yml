@@ -82,14 +82,9 @@ jobs:
       - name: Save build binaries linux/amd64
         uses: actions/upload-artifact@v2
         with:
-          name: sealer-binaries-linux-amd64
-          path: src/github.com/alibaba/sealer/_output/assets/*-linux-amd64.tar.gz*
+          name: sealer-binaries
+          path: src/github.com/alibaba/sealer/_output/assets/*.tar.gz*
 
-      - name: Save build binaries linux/arm64
-        uses: actions/upload-artifact@v2
-        with:
-          name: sealer-binaries-linux-arm64
-          path: src/github.com/alibaba/sealer/_output/assets/*-linux-arm64.tar.gz*
 
   release:
     name: Create sealer Release
