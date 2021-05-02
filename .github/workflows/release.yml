@@ -48,7 +48,7 @@ jobs:
           releasever=${{ github.ref }}
           releasever="${releasever#refs/tags/}"
           os=linux
-          echo "RELEASE_VER=${releasever}" >> $GITHUB_ENV
+          echo "GIT_TAG=${releasever}" >> $GITHUB_ENV
           echo "GOPATH=${{ github.workspace }}" >> $GITHUB_ENV
           echo "OS=${os}" >> $GITHUB_ENV
           echo "${{ github.workspace }}/bin" >> $GITHUB_PATH
@@ -72,12 +72,14 @@ jobs:
             arch=${platform##*/}
             go env -w GOOS="${os}"
             go env -w GOARCH="${arch}"
-            make build version=${RELEASE_VER#v}
+            make build version=${GIT_TAG#v}
           done
         working-directory: src/github.com/alibaba/sealer
       - name: Make linux
         shell: bash
         run: |
+          go env -w GOOS="linux"
+          go env -w GOARCH="amd64"
           make test_version
         working-directory: src/github.com/alibaba/sealer
 
