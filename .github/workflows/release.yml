@@ -6,8 +6,8 @@ on:
 name: Sealer Release
 
 jobs:
-  check:
-    name: Check Signed Tag
+  note:
+    name: Pre note
     runs-on: ubuntu-18.04
     timeout-minutes: 5
     outputs:
@@ -20,20 +20,6 @@ jobs:
           ref: ${{ github.ref }}
           path: src/github.com/alibaba/sealer
 
-      - name: Check signature
-        run: |
-          releasever=${{ github.ref }}
-          releasever="${releasever#refs/tags/}"
-          TAGCHECK=$(git tag -v ${releasever} 2>&1 >/dev/null) ||
-          echo "${TAGCHECK}" | grep -q "error" && {
-              echo "::error::tag ${releasever} is not a signed tag. Failing release process."
-              exit 1
-          } || {
-              echo "Tag ${releasever} is signed."
-              exit 0
-          }
-        working-directory: src/github.com/alibaba/sealer
-
       - name: Save release notes
         uses: actions/upload-artifact@v2
         with:
@@ -42,7 +28,7 @@ jobs:
   build:
     name: Build Release Binaries
     runs-on: ${{ matrix.os }}
-    needs: [check]
+    needs: [note]
     timeout-minutes: 10
 
     strategy:
@@ -113,7 +99,7 @@ jobs:
     name: Create sealer Release
     runs-on: ubuntu-18.04
     timeout-minutes: 10
-    needs: [build, check]
+    needs: [build, note]
 
     steps:
       - name: Download builds and release notes
