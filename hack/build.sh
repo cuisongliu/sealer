@@ -22,7 +22,7 @@
 #    MULTI_PLATFORM_BUILD -  Need build all platform.(linux and darwin)
 
 
-export GO111MODULE=off
+export GO111MODULE=on
 
 SEALER_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
 export THIS_PLATFORM_BIN="${SEALER_ROOT}/_output/bin"
