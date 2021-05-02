@@ -76,9 +76,9 @@ jobs:
             SEALER_TARFILE="sealer-${RELEASE_VER#v}-${os}-${arch}.tar.gz"
             tar czf ${SEALER_TARFILE} _output/bin/sealer/${os}_${arch}/
             sha256sum ${SEALER_TARFILE} >${SEALER_TARFILE}.sha256sum
-            SEALUTIL_TARFILE="sealutil-${RELEASE_VER#v}-${os}-${arch}.tar.gz"
-            tar czf ${SEALUTIL_TARFILE} _output/bin/sealutil/${os}_${arch}/
-            sha256sum ${SEALUTIL_TARFILE} >${SEALUTIL_TARFILE}.sha256sum
+            SEAUTIL_TARFILE="seautil-${RELEASE_VER#v}-${os}-${arch}.tar.gz"
+            tar czf ${SEAUTIL_TARFILE} _output/bin/seautil/${os}_${arch}/
+            sha256sum ${SEAUTIL_TARFILE} >${SEAUTIL_TARFILE}.sha256sum
           done
         working-directory: src/github.com/alibaba/sealer
 
