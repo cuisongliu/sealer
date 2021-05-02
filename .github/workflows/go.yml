@@ -29,15 +29,33 @@ jobs:
 
       - name: Check out code into the Go module directory
         uses: actions/checkout@v2
-
+        with:
+          path: src/github.com/alibaba/sealer
       - name: Install go ci lint
         run: curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(go env GOPATH)/bin v1.35.2
 
       - name: Run Linter
         run: golangci-lint run -v
-
-      - name: Build
-        env:
-          GOPATH: ${{ runner.workspace }}
+        working-directory: src/github.com/alibaba/sealer
+      - name: Make linux
+        shell: bash
         run: |
-          make build
+          readonly platforms=(
+            linux/amd64
+            linux/arm64
+          )
+
+          for platform in "${platforms[@]}"; do
+            os=${platform%/*}
+            arch=${platform##*/}
+            go env -w GOOS="${os}"
+            go env -w GOARCH="${arch}"
+            make build version=${GIT_TAG#v}
+          done
+        working-directory: src/github.com/alibaba/sealer
+
+      - name: Save build binaries
+        uses: actions/upload-artifact@v2
+        with:
+          name: sealer-binaries
+          path: src/github.com/alibaba/sealer/_output/assets/*.tar.gz*
