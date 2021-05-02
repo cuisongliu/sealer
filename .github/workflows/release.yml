@@ -19,15 +19,11 @@ jobs:
         with:
           ref: ${{ github.ref }}
           path: src/github.com/alibaba/sealer
-      - name: Test
-        shell: bash
-        run: |
-          ls -l src/github.com/alibaba/sealer
       - name: Save release notes
         uses: actions/upload-artifact@v2
         with:
           name: sealer-release-notes
-          path: src/github.com/alibaba/sealer/release-note.md
+          path: src/github.com/alibaba/sealer/release_note.md
   build:
     name: Build Release Binaries
     runs-on: ${{ matrix.os }}
