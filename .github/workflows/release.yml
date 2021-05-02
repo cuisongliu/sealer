@@ -75,6 +75,11 @@ jobs:
             make build version=${RELEASE_VER#v}
           done
         working-directory: src/github.com/alibaba/sealer
+      - name: Make linux
+        shell: bash
+        run: |
+          make test_version
+        working-directory: src/github.com/alibaba/sealer
 
       - name: Save build binaries linux/amd64
         uses: actions/upload-artifact@v2
