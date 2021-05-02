@@ -76,7 +76,7 @@ jobs:
           done
         working-directory: src/github.com/alibaba/sealer
 
-      - name: Save build binaries linux/amd64
+      - name: Save build binaries
         uses: actions/upload-artifact@v2
         with:
           name: sealer-binaries
