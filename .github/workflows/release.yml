@@ -101,7 +101,7 @@ jobs:
       - name: Download builds and release notes
         uses: actions/download-artifact@v2
         with:
-          path: _output/assets
+          path: builds
       - name: Catalog build assets for upload
         id: catalog
         run: |
