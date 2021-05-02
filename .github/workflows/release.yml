@@ -18,13 +18,16 @@ jobs:
         uses: actions/checkout@v2
         with:
           ref: ${{ github.ref }}
-          path: /home/runner/work/src/github.com/alibaba/sealer
-
+          path: src/github.com/alibaba/sealer
+      - name: Test
+        shell: bash
+        run: |
+          ls -l src/github.com/alibaba/sealer
       - name: Save release notes
         uses: actions/upload-artifact@v2
         with:
           name: sealer-release-notes
-          path: /home/runner/work/src/github.com/alibaba/sealer/release-note.md
+          path: src/github.com/alibaba/sealer/release-note.md
   build:
     name: Build Release Binaries
     runs-on: ${{ matrix.os }}
@@ -58,7 +61,7 @@ jobs:
         with:
           repository: alibaba/sealer
           ref: ${{ github.ref }}
-          path: /home/runner/work/src/github.com/alibaba/sealer
+          path: src/github.com/alibaba/sealer
 
       - name: Make linux
         shell: bash
@@ -81,19 +84,19 @@ jobs:
             tar czf ${SEALUTIL_TARFILE} _output/bin/sealutil/${os}_${arch}/
             sha256sum ${SEALUTIL_TARFILE} >${SEALUTIL_TARFILE}.sha256sum
           done
-        working-directory: /home/runner/work/src/github.com/alibaba/sealer
+        working-directory: src/github.com/alibaba/sealer
 
       - name: Save build binaries linux/amd64
         uses: actions/upload-artifact@v2
         with:
           name: sealer-binaries-linux-amd64
-          path: /home/runner/work/src/github.com/alibaba/sealer/*-linux-amd64.tar.gz*
+          path: src/github.com/alibaba/sealer/*-linux-amd64.tar.gz*
 
       - name: Save build binaries linux/arm64
         uses: actions/upload-artifact@v2
         with:
           name: sealer-binaries-linux-arm64
-          path: /home/runner/work/src/github.com/alibaba/sealer/*-linux-arm64.tar.gz*
+          path: src/github.com/alibaba/sealer/*-linux-arm64.tar.gz*
 
   release:
     name: Create sealer Release
