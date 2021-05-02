@@ -37,17 +37,8 @@ jobs:
 #      - name: Run Linter
 #        run: golangci-lint run -v
 
-      - name: Build amd64
+      - name: Build
         env:
           GOPATH: ${{ runner.workspace }}
         run: |
-          go env -w GOOS="linux"
-          go env -w GOARCH="amd64"
-          make build
-      - name: Build arm64
-        env:
-          GOPATH: ${{ runner.workspace }}
-        run: |
-          go env -w GOOS="linux"
-          go env -w GOARCH="arm64"
           make build

@@ -1,0 +1,132 @@
+on:
+  push:
+    tags:
+      - 'v*' # Push events to matching v*, i.e. v1.0, v20.15.10
+
+name: Sealer Release
+
+jobs:
+  check:
+    name: Check Signed Tag
+    runs-on: ubuntu-18.04
+    timeout-minutes: 5
+    outputs:
+      stringver: ${{ steps.contentrel.outputs.stringver }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+        with:
+          ref: ${{ github.ref }}
+          path: src/github.com/alibaba/sealer
+
+      - name: Check signature
+        run: |
+          releasever=${{ github.ref }}
+          releasever="${releasever#refs/tags/}"
+          TAGCHECK=$(git tag -v ${releasever} 2>&1 >/dev/null) ||
+          echo "${TAGCHECK}" | grep -q "error" && {
+              echo "::error::tag ${releasever} is not a signed tag. Failing release process."
+              exit 1
+          } || {
+              echo "Tag ${releasever} is signed."
+              exit 0
+          }
+        working-directory: src/github.com/alibaba/sealer
+
+      - name: Save release notes
+        uses: actions/upload-artifact@v2
+        with:
+          name: sealer-release-notes
+          path: src/github.com/alibaba/sealer/release-note.md
+  build:
+    name: Build Release Binaries
+    runs-on: ${{ matrix.os }}
+    needs: [check]
+    timeout-minutes: 10
+
+    strategy:
+      matrix:
+        os: [ubuntu-18.04]
+
+    steps:
+      - name: Install Go
+        uses: actions/setup-go@v2
+        with:
+          go-version: '1.16.3'
+
+      - name: Set env
+        shell: bash
+        env:
+          MOS: ${{ matrix.os }}
+        run: |
+          releasever=${{ github.ref }}
+          releasever="${releasever#refs/tags/}"
+          os=linux
+          echo "RELEASE_VER=${releasever}" >> $GITHUB_ENV
+          echo "GOPATH=${{ github.workspace }}" >> $GITHUB_ENV
+          echo "OS=${os}" >> $GITHUB_ENV
+          echo "${{ github.workspace }}/bin" >> $GITHUB_PATH
+      - name: Checkout sealer
+        uses: actions/checkout@v2
+        with:
+          repository: alibaba/sealer
+          ref: ${{ github.ref }}
+          path: src/github.com/alibaba/sealer
+
+      - name: Make linux
+        shell: bash
+        run: |
+          readonly platforms=(
+            linux/amd64
+            linux/arm64
+          )
+
+          for platform in "${platforms[@]}"; do
+            os=${platform%/*}
+            arch=${platform##*/}
+            go env -w GOOS="${os}"
+            go env -w GOARCH="${arch}"
+            make build
+            SEALER_TARFILE="sealer-${RELEASE_VER#v}-${os}-${arch}.tar.gz"
+            tar czf ${SEALER_TARFILE} _output/bin/sealer/${os}_${arch}/
+            sha256sum ${SEALER_TARFILE} >${SEALER_TARFILE}.sha256sum
+            SEALUTIL_TARFILE="sealutil-${RELEASE_VER#v}-${os}-${arch}.tar.gz"
+            tar czf ${SEALUTIL_TARFILE} _output/bin/sealutil/${os}_${arch}/
+            sha256sum ${SEALUTIL_TARFILE} >${SEALUTIL_TARFILE}.sha256sum
+          done
+        working-directory: src/github.com/alibaba/sealer
+
+      - name: Save build binaries linux/amd64
+        uses: actions/upload-artifact@v2
+        with:
+          name: sealer-binaries-linux-amd64
+          path: src/github.com/alibaba/sealer/*-linux-amd64.tar.gz*
+
+      - name: Save build binaries linux/arm64
+        uses: actions/upload-artifact@v2
+        with:
+          name: sealer-binaries-linux-arm64
+          path: src/github.com/alibaba/sealer/*-linux-arm64.tar.gz*
+
+  release:
+    name: Create sealer Release
+    runs-on: ubuntu-18.04
+    timeout-minutes: 10
+    needs: [build, check]
+
+    steps:
+      - name: Download builds and release notes
+        uses: actions/download-artifact@v2
+        with:
+          path: _output/artifacts
+      - name: Catalog build assets for upload
+        id: catalog
+        run: |
+          _filenum=1
+          for i in "linux-amd64" "linux-arm64"; do
+            for f in `ls builds/sealer-binaries-${i}`; do
+              echo "::set-output name=file${_filenum}::${f}"
+              let "_filenum+=1"
+            done
+          done
