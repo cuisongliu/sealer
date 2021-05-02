@@ -24,7 +24,7 @@ jobs:
         uses: actions/upload-artifact@v2
         with:
           name: sealer-release-notes
-          path: release-note.md
+          path: src/github.com/alibaba/sealer/release-note.md
   build:
     name: Build Release Binaries
     runs-on: ${{ matrix.os }}
