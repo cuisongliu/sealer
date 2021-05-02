@@ -74,10 +74,6 @@ jobs:
             go env -w GOARCH="${arch}"
             make build version=${GIT_TAG#v}
           done
-        working-directory: src/github.com/alibaba/sealer
-      - name: Make linux
-        shell: bash
-        run: |
           go env -w GOOS="linux"
           go env -w GOARCH="amd64"
           make test_version
