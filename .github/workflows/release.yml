@@ -19,6 +19,12 @@ jobs:
         with:
           ref: ${{ github.ref }}
           path: src/github.com/alibaba/sealer
+      - name: stringver
+        id: contentrel
+        run: |
+          RELEASEVER=${{ github.ref }}
+          echo "::set-output name=stringver::${RELEASEVER#refs/tags/v}"
+        working-directory: src/github.com/alibaba/sealer
       - name: Save release notes
         uses: actions/upload-artifact@v2
         with:
@@ -106,7 +112,7 @@ jobs:
           done
       - name: Create Release
         id: create_release
-        uses: actions/create-release@v1.1.2
+        uses: Hs1r1us/Release-AIO@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
@@ -114,40 +120,41 @@ jobs:
           release_name: sealer ${{ needs.note.outputs.stringver }}
           body_path: ./builds/sealer-release-notes/release_note.md
           draft: false
+          asset_files: ./builds/sealer-binaries/
           prerelease: ${{ contains(github.ref, 'beta') || contains(github.ref, 'rc') }}
-      - name: Upload Linux sealer linux amd64
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./builds/sealer-binaries/${{ steps.catalog.outputs.file1 }}
-          asset_name: ${{ steps.catalog.outputs.file1 }}
-          asset_content_type: application/gzip
-      - name: Upload Linux sealer linux amd64 sha256 sum
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./builds/sealer-binaries/${{ steps.catalog.outputs.file2 }}
-          asset_name: ${{ steps.catalog.outputs.file2 }}
-          asset_content_type: text/plain
-      - name: Upload Linux sealer linux arm64
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./builds/sealer-binaries/${{ steps.catalog.outputs.file3 }}
-          asset_name: ${{ steps.catalog.outputs.file3 }}
-          asset_content_type: application/gzip
-      - name: Upload Linux sealer linux arm64 sha256 sum
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./builds/sealer-binaries/${{ steps.catalog.outputs.file4 }}
-          asset_name: ${{ steps.catalog.outputs.file4 }}
-          asset_content_type: text/plain
+#      - name: Upload Linux sealer linux amd64
+#        uses: actions/upload-release-asset@v1
+#        env:
+#          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+#        with:
+#          upload_url: ${{ steps.create_release.outputs.upload_url }}
+#          asset_path: ./builds/sealer-binaries/${{ steps.catalog.outputs.file1 }}
+#          asset_name: ${{ steps.catalog.outputs.file1 }}
+#          asset_content_type: application/gzip
+#      - name: Upload Linux sealer linux amd64 sha256 sum
+#        uses: actions/upload-release-asset@v1
+#        env:
+#          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+#        with:
+#          upload_url: ${{ steps.create_release.outputs.upload_url }}
+#          asset_path: ./builds/sealer-binaries/${{ steps.catalog.outputs.file2 }}
+#          asset_name: ${{ steps.catalog.outputs.file2 }}
+#          asset_content_type: text/plain
+#      - name: Upload Linux sealer linux arm64
+#        uses: actions/upload-release-asset@v1
+#        env:
+#          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+#        with:
+#          upload_url: ${{ steps.create_release.outputs.upload_url }}
+#          asset_path: ./builds/sealer-binaries/${{ steps.catalog.outputs.file3 }}
+#          asset_name: ${{ steps.catalog.outputs.file3 }}
+#          asset_content_type: application/gzip
+#      - name: Upload Linux sealer linux arm64 sha256 sum
+#        uses: actions/upload-release-asset@v1
+#        env:
+#          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+#        with:
+#          upload_url: ${{ steps.create_release.outputs.upload_url }}
+#          asset_path: ./builds/sealer-binaries/${{ steps.catalog.outputs.file4 }}
+#          asset_name: ${{ steps.catalog.outputs.file4 }}
+#          asset_content_type: text/plain
