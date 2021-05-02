@@ -72,13 +72,7 @@ jobs:
             arch=${platform##*/}
             go env -w GOOS="${os}"
             go env -w GOARCH="${arch}"
-            make build
-            SEALER_TARFILE="sealer-${RELEASE_VER#v}-${os}-${arch}.tar.gz"
-            tar czf ${SEALER_TARFILE} _output/bin/sealer/${os}_${arch}/
-            sha256sum ${SEALER_TARFILE} >${SEALER_TARFILE}.sha256sum
-            SEAUTIL_TARFILE="seautil-${RELEASE_VER#v}-${os}-${arch}.tar.gz"
-            tar czf ${SEAUTIL_TARFILE} _output/bin/seautil/${os}_${arch}/
-            sha256sum ${SEAUTIL_TARFILE} >${SEAUTIL_TARFILE}.sha256sum
+            make build version=${RELEASE_VER#v}
           done
         working-directory: src/github.com/alibaba/sealer
 
@@ -86,13 +80,13 @@ jobs:
         uses: actions/upload-artifact@v2
         with:
           name: sealer-binaries-linux-amd64
-          path: src/github.com/alibaba/sealer/*-linux-amd64.tar.gz*
+          path: src/github.com/alibaba/sealer/_output/assets/*-linux-amd64.tar.gz*
 
       - name: Save build binaries linux/arm64
         uses: actions/upload-artifact@v2
         with:
           name: sealer-binaries-linux-arm64
-          path: src/github.com/alibaba/sealer/*-linux-arm64.tar.gz*
+          path: src/github.com/alibaba/sealer/_output/assets/*-linux-arm64.tar.gz*
 
   release:
     name: Create sealer Release
@@ -104,7 +98,7 @@ jobs:
       - name: Download builds and release notes
         uses: actions/download-artifact@v2
         with:
-          path: _output/artifacts
+          path: _output/assets
       - name: Catalog build assets for upload
         id: catalog
         run: |
