@@ -59,17 +59,21 @@ func (bim *BaseImageManager) initRegistry(hostname string) error {
 		}
 	}
 
-	reg, err := registry.New(context.Background(), types.AuthConfig{ServerAddress: hostname, Username: username, Password: passwd}, registry.Opt{Insecure: true})
-	noHttpsError := errors.New("http: server gave HTTP response to HTTPS client")
+	var reg *registry.Registry
+	reg, err = registry.New(context.Background(), types.AuthConfig{ServerAddress: hostname, Username: username, Password: passwd}, registry.Opt{Insecure: true})
+	noHTTPSError := errors.New("http: server gave HTTP response to HTTPS client")
 
 	if nil != err {
-		if err == noHttpsError {
-			reg, err = registry.New(context.Background(), types.AuthConfig{ServerAddress: hostname, Username: username, Password: passwd}, registry.Opt{Insecure: true, NonSSL: true})
-			if err != nil {
-				return err
+		if err == noHTTPSError {
+			noSSLReg, noSSLErr := registry.New(context.Background(), types.AuthConfig{ServerAddress: hostname, Username: username, Password: passwd}, registry.Opt{Insecure: true, NonSSL: true})
+			if noSSLErr != nil {
+				return noSSLErr
+			} else {
+				reg = noSSLReg
 			}
+		} else {
+			return err
 		}
-		return err
 	}
 
 	bim.registry = reg
