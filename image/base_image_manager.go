@@ -3,22 +3,21 @@ package image
 import (
 	"context"
 	"encoding/json"
-	"github.com/docker/docker/api/types"
-	"github.com/justadogistaken/reg/registry"
-	"github.com/opencontainers/go-digest"
-	"github.com/wonderivan/logger"
+	"errors"
 	"github.com/alibaba/sealer/common"
 	"github.com/alibaba/sealer/image/reference"
 	imageutils "github.com/alibaba/sealer/image/utils"
 	v1 "github.com/alibaba/sealer/types/api/v1"
 	pkgutils "github.com/alibaba/sealer/utils"
+	"github.com/docker/docker/api/types"
+	"github.com/justadogistaken/reg/registry"
+	"github.com/opencontainers/go-digest"
+	"github.com/wonderivan/logger"
 	"io/ioutil"
 	"os"
 	"path/filepath"
 	"sigs.k8s.io/yaml"
 )
-
-
 
 // BaseImageManager take the responsibility to store common values
 type BaseImageManager struct {
@@ -61,7 +60,15 @@ func (bim *BaseImageManager) initRegistry(hostname string) error {
 	}
 
 	reg, err := registry.New(context.Background(), types.AuthConfig{ServerAddress: hostname, Username: username, Password: passwd}, registry.Opt{Insecure: true})
-	if err != nil {
+	noHttpsError := errors.New("http: server gave HTTP response to HTTPS client")
+
+	if nil != err {
+		if err == noHttpsError {
+			reg, err = registry.New(context.Background(), types.AuthConfig{ServerAddress: hostname, Username: username, Password: passwd}, registry.Opt{Insecure: true, NonSSL: true})
+			if err != nil {
+				return err
+			}
+		}
 		return err
 	}
 
