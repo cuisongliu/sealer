@@ -61,7 +61,6 @@ jobs:
       - name: Checkout sealer
         uses: actions/checkout@v2
         with:
-          repository: alibaba/sealer
           ref: ${{ github.ref }}
           path: src/github.com/alibaba/sealer
 
