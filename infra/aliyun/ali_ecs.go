@@ -3,12 +3,13 @@ package aliyun
 import (
 	"errors"
 	"fmt"
-	utils2 "github.com/alibaba/sealer/infra/utils"
 	"math/rand"
 	"os"
 	"strconv"
 	"strings"
 	"time"
+
+	utils2 "github.com/alibaba/sealer/infra/utils"
 
 	"github.com/alibaba/sealer/logger"
 	v1 "github.com/alibaba/sealer/types/api/v1"

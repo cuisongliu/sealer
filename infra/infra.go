@@ -31,7 +31,7 @@ func NewDefaultProvider(cluster *v1.Cluster) Interface {
 		}
 		return aliProvider
 	case baremetal.Baremetal:
-		baremetalProvider := new(baremetal.BaremetalProvider)
+		baremetalProvider := new(baremetal.Provider)
 		baremetalProvider.Cluster = cluster
 		return baremetalProvider
 	default:

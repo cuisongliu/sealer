@@ -17,17 +17,18 @@ package baremetal
 
 import (
 	"errors"
+	"strings"
+
 	"github.com/alibaba/sealer/common"
 	"github.com/alibaba/sealer/infra/aliyun"
 	"github.com/alibaba/sealer/logger"
 	v1 "github.com/alibaba/sealer/types/api/v1"
 	"github.com/alibaba/sealer/utils"
-	"strings"
 )
 
 type ActionName string
 
-type BaremetalProvider struct {
+type Provider struct {
 	Cluster *v1.Cluster
 }
 
@@ -43,8 +44,8 @@ const (
 	BaremetalNodeIPs   = common.AliDomain + "NodeIPs"
 )
 
-var RecocileFuncMap = map[ActionName]func(provider *BaremetalProvider) error{
-	ReconcileInstance: func(provider *BaremetalProvider) error {
+var RecocileFuncMap = map[ActionName]func(provider *Provider) error{
+	ReconcileInstance: func(provider *Provider) error {
 		err := provider.ReconcileIPlist(Master)
 		if err != nil {
 			return err
@@ -56,12 +57,12 @@ var RecocileFuncMap = map[ActionName]func(provider *BaremetalProvider) error{
 		}
 		return nil
 	},
-	BindEIP: func(provider *BaremetalProvider) error {
+	BindEIP: func(provider *Provider) error {
 		return provider.BindEipForMaster0()
 	},
 }
 
-func (a *BaremetalProvider) Reconcile() error {
+func (a *Provider) Reconcile() error {
 	if a.Cluster.Annotations == nil {
 		a.Cluster.Annotations = make(map[string]string)
 	}
@@ -83,10 +84,10 @@ func (a *BaremetalProvider) Reconcile() error {
 	return nil
 }
 
-func (a *BaremetalProvider) Apply() error {
+func (a *Provider) Apply() error {
 	return a.Reconcile()
 }
-func (a *BaremetalProvider) InputIPlist(instanceRole string) (iplist []string, err error) {
+func (a *Provider) InputIPlist(instanceRole string) (iplist []string, err error) {
 	var ipList []string
 	var hosts *v1.Hosts
 	switch instanceRole {
@@ -98,12 +99,10 @@ func (a *BaremetalProvider) InputIPlist(instanceRole string) (iplist []string, e
 	if hosts == nil {
 		return nil, err
 	}
-	for _, ip := range hosts.IPList {
-		ipList = append(ipList, ip)
-	}
+	ipList = append(ipList, hosts.IPList...)
 	return ipList, nil
 }
-func (a *BaremetalProvider) ReconcileIPlist(instanceRole string) error {
+func (a *Provider) ReconcileIPlist(instanceRole string) error {
 	var hosts *v1.Hosts
 	var oldIPList []string
 	var oldIPListString string
@@ -144,7 +143,7 @@ func (a *BaremetalProvider) ReconcileIPlist(instanceRole string) error {
 	logger.Info("reconcile %s instances success %v ", instanceRole, hosts.IPList)
 	return nil
 }
-func (a *BaremetalProvider) BindEipForMaster0() error {
+func (a *Provider) BindEipForMaster0() error {
 	masters := a.Cluster.Spec.Masters
 	if len(masters.IPList) == 0 {
 		return errors.New("can not find master0 ")

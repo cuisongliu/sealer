@@ -2,9 +2,10 @@ package infra
 
 import (
 	"fmt"
-	"github.com/alibaba/sealer/infra/aliyun"
 	"io/ioutil"
 	"testing"
+
+	"github.com/alibaba/sealer/infra/aliyun"
 
 	v1 "github.com/alibaba/sealer/types/api/v1"
 	"github.com/alibaba/sealer/utils"

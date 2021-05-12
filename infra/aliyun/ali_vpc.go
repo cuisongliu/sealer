@@ -2,6 +2,7 @@ package aliyun
 
 import (
 	"errors"
+
 	"github.com/alibaba/sealer/infra/utils"
 
 	"github.com/aliyun/alibaba-cloud-sdk-go/sdk/requests"
