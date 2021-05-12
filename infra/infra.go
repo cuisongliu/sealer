@@ -1,6 +1,8 @@
 package infra
 
 import (
+	"github.com/alibaba/sealer/infra/aliyun"
+	"github.com/alibaba/sealer/infra/baremetal"
 	"github.com/alibaba/sealer/logger"
 	v1 "github.com/alibaba/sealer/types/api/v1"
 )
@@ -13,14 +15,14 @@ type Interface interface {
 
 func NewDefaultProvider(cluster *v1.Cluster) Interface {
 	switch cluster.Spec.Provider {
-	case AliCloud:
-		config := new(Config)
-		err := GetAKSKFromEnv(config)
+	case aliyun.AliCloud:
+		config := new(aliyun.Config)
+		err := aliyun.GetAKSKFromEnv(config)
 		if err != nil {
 			logger.Error(err)
 			return nil
 		}
-		aliProvider := new(AliProvider)
+		aliProvider := new(aliyun.AliProvider)
 		aliProvider.Config = *config
 		aliProvider.Cluster = cluster
 		err = aliProvider.NewClient()
@@ -28,6 +30,10 @@ func NewDefaultProvider(cluster *v1.Cluster) Interface {
 			logger.Error(err)
 		}
 		return aliProvider
+	case baremetal.Baremetal:
+		baremetalProvider := new(baremetal.BaremetalProvider)
+		baremetalProvider.Cluster = cluster
+		return baremetalProvider
 	default:
 		return nil
 	}

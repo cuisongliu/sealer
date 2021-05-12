@@ -138,19 +138,19 @@ spec:
     svcCIDR: 10.96.0.0/22
     withoutCNI: false
   certSANS:
-    -aliyun-inc.com
-    -10.0.0.2
+    - aliyun-inc.com
+    - 10.0.0.2
     
   masters:
     ipList:
-     -172.20.125.234
-     -172.20.126.5
-     -172.20.126.6
+     - 172.20.125.234
+     - 172.20.126.5
+     - 172.20.126.6
   nodes:
     ipList:
-     -172.20.126.8
-     -172.20.126.9
-     -172.20.126.10
+     - 172.20.126.8
+     - 172.20.126.9
+     - 172.20.126.10
 ```
 
 ```shell script
@@ -180,8 +180,8 @@ spec:
     svcCIDR: 10.96.0.0/22
     withoutCNI: false
   certSANS:
-    -aliyun-inc.com
-    -10.0.0.2
+    - aliyun-inc.com
+    - 10.0.0.2
     
   masters:
     cpu: 4
@@ -189,14 +189,14 @@ spec:
     count: 3
     systemDisk: 100
     dataDisks:
-    -100
+    - 100
   nodes:
     cpu: 4
     memory: 4
     count: 3
     systemDisk: 100
     dataDisks:
-    -100
+    - 100
 ```
 
 ## clean the cluster

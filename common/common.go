@@ -28,7 +28,6 @@ const (
 	DefaultImageMetadataFile      = "/var/lib/sealer/metadata/images_metadata.json"
 	DefaultLayerDir               = "/var/lib/sealer/data/overlay2"
 	YamlSuffix                    = ".yaml"
-	RemoteServerEIPAnnotation     = "sea.aliyun.com/ClusterEIP"
 	ImageAnnotationForClusterfile = "sea.aliyun.com/ClusterFile"
 	RawClusterfile                = "/var/lib/sealer/Clusterfile"
 	TmpClusterfile                = "/tmp/Clusterfile"
