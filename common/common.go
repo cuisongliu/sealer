@@ -29,7 +29,6 @@ const (
 	DefaultImageMetadataFile      = "/var/lib/sealer/metadata/images_metadata.json"
 	DefaultLayerDir               = "/var/lib/sealer/data/overlay2"
 	YamlSuffix                    = ".yaml"
-	RemoteServerEIPAnnotation     = "sea.aliyun.com/ClusterEIP"
 	ImageAnnotationForClusterfile = "sea.aliyun.com/ClusterFile"
 	RawClusterfile                = "/var/lib/sealer/Clusterfile"
 	TmpClusterfile                = "/tmp/Clusterfile"
@@ -49,6 +48,7 @@ const (
 //about infra
 const (
 	AliDomain         = "sea.aliyun.com/"
+	Provider          = AliDomain + "Provider"
 	Eip               = AliDomain + "ClusterEIP"
 	Master0InternalIP = AliDomain + "Master0InternalIP"
 	EipID             = AliDomain + "EipID"
@@ -94,6 +94,10 @@ func GetClusterWorkDir(clusterName string) string {
 		return fmt.Sprintf(ClusterWorkDir, clusterName)
 	}
 	return filepath.Join(home, ".sealer", clusterName)
+}
+
+func GetClusterRootfsDir(clusterName string) string {
+	return fmt.Sprintf(DefaultClusterRootfsDir+"/%s", clusterName)
 }
 
 func GetClusterWorkClusterfile(clusterName string) string {

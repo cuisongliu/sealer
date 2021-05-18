@@ -7,6 +7,8 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/alibaba/sealer/common"
+
 	"github.com/alibaba/sealer/image"
 
 	"github.com/alibaba/sealer/logger"
@@ -83,7 +85,21 @@ func (d *Default) initRunner(cluster *v1.Cluster) error {
 	d.StaticFileDir = fmt.Sprintf("%s/statics", d.Rootfs)
 	// TODO remote port in ipList
 	d.APIServerCertSANs = append(cluster.Spec.CertSANS, d.getDefaultSANs()...)
-	metadataFile := image.GetMetadataFromImage(cluster.Spec.Image)
+	metadataPath := fmt.Sprintf("%s/%s", d.Rootfs, common.DefaultMetadataName)
+	var metadataFile string
+	if utils.IsFileExist(metadataPath) {
+		data, err := ioutil.ReadFile(metadataPath)
+		if err != nil {
+			logger.Warn("read metadata is error: %v", err)
+		}
+		metadataFile = string(data)
+	} else {
+		metadataFile = image.GetMetadataFromImage(cluster.Spec.Image)
+		err := utils.WriteFile(metadataPath, []byte(metadataFile))
+		if err != nil {
+			logger.Warn("write metadata is error: %v", err)
+		}
+	}
 	d.Metadata = NewMetadata(metadataFile)
 	d.Interface = cluster.Spec.Network.Interface
 	d.Network = cluster.Spec.Network.CNIName
@@ -95,7 +111,6 @@ func (d *Default) initRunner(cluster *v1.Cluster) error {
 	} else {
 		d.MTU = "1550"
 	}
-
 	return nil
 }
 

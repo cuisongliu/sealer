@@ -14,6 +14,9 @@ type Interface interface {
 	Hook(cluster *v1.Cluster) error
 	Upgrade(cluster *v1.Cluster) error
 	Reset(cluster *v1.Cluster) error
+	CNI(cluster *v1.Cluster) error
+	HostPreStart(cluster *v1.Cluster) error
+	HostPostStop(cluster *v1.Cluster) error
 	JoinMasters(newMastersIPList []string) error
 	JoinNodes(newNodesIPList []string) error
 	DeleteMasters(mastersIPList []string) error
@@ -51,7 +54,6 @@ type Default struct {
 	LvscareImage      string
 	SSH               ssh.Interface
 	Rootfs            string
-
 	// net config
 	Interface  string
 	Network    string
@@ -81,27 +83,37 @@ func NewMetadata(data string) *Metadata {
 }
 
 func (d *Default) Reset(cluster *v1.Cluster) error {
-	panic("implement me")
+	return d.reset(cluster)
 }
-
+func (d *Default) CNI(cluster *v1.Cluster) error {
+	return d.cni(cluster)
+}
 func (d *Default) Upgrade(cluster *v1.Cluster) error {
 	panic("implement upgrade !!")
 }
-
+func (d *Default) HostPreStart(cluster *v1.Cluster) error {
+	return d.hostPreStart(cluster)
+}
+func (d *Default) HostPostStop(cluster *v1.Cluster) error {
+	return d.hostPostStop(cluster)
+}
 func (d *Default) JoinMasters(newMastersIPList []string) error {
-	logger.Info("join masters: %v", newMastersIPList)
+	logger.Debug("join masters: %v", newMastersIPList)
 	return d.joinMasters(newMastersIPList)
 }
 
 func (d *Default) JoinNodes(newNodesIPList []string) error {
+	logger.Debug("join nodes: %v", newNodesIPList)
 	return d.joinNodes(newNodesIPList)
 }
 
 func (d *Default) DeleteMasters(mastersIPList []string) error {
+	logger.Debug("delete masters: %v", mastersIPList)
 	return d.deleteMasters(mastersIPList)
 }
 
 func (d *Default) DeleteNodes(nodesIPList []string) error {
+	logger.Debug("delete nodes: %v", nodesIPList)
 	return d.deleteNodes(nodesIPList)
 }
 

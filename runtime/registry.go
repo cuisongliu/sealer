@@ -21,3 +21,8 @@ func (d *Default) EnsureRegistryOnMaster0() error {
 	cmd := fmt.Sprintf("cd %s/scripts && sh init-registry.sh 5000 %s/registry", d.Rootfs, d.Rootfs)
 	return d.SSH.CmdAsync(d.Masters[0], cmd)
 }
+
+func (d *Default) RecycleRegistryOnMaster0() error {
+	cmd := "pid=`docker ps  | grep registry | grep 5000 | awk '{print $1}'` && docker stop $pid && docker rm $pid"
+	return d.SSH.CmdAsync(d.Masters[0], cmd)
+}

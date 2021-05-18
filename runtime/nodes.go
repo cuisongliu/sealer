@@ -92,7 +92,7 @@ func (d *Default) deleteNodes(nodes []string) error {
 
 func (d *Default) deleteNode(node string) error {
 	host := utils.GetHostIP(node)
-	if err := d.SSH.CmdAsync(host, fmt.Sprintf(RemoteCleanMasterOrNode, vlogToStr(d.Vlog)), fmt.Sprintf(RemoteRemoveAPIServerEtcHost, d.APIServer)); err != nil {
+	if err := d.SSH.CmdAsync(host, fmt.Sprintf(RemoteCleanMasterOrNode, vlogToStr(d.Vlog)), fmt.Sprintf(RemoteRemoveAPIServerEtcHost, d.APIServer), fmt.Sprintf(RemoteRemoveAPIServerEtcHost, getRegistryHost(d.Masters[0]))); err != nil {
 		return err
 	}
 
@@ -104,6 +104,5 @@ func (d *Default) deleteNode(node string) error {
 			return fmt.Errorf("delete node %s failed %v", hostname, err)
 		}
 	}
-
 	return nil
 }
