@@ -111,8 +111,10 @@ jobs:
           files: |
             builds/sealer-binaries/*
       - name: Build binareies to oss
+        env:
+          VERSION: ${{ steps.contentrel.outputs.stringver }}
         run: wget http://gosspublic.alicdn.com/ossutil/1.6.19/ossutil64 && chmod 755 ossutil64 &&
-          ./ossutil64 -i ${{ secrets.ACCESSKEYID }} -k ${{ secrets.ACCESSKEYSECRET }} -e oss-cn-beijing.aliyuncs.com cp -rf ./builds/sealer-binaries/${{ steps.catalog.outputs.file1 }} oss://sealer/sealers/${{ steps.prepare.outputs.tag_name }} &&
-          ./ossutil64 -i ${{ secrets.ACCESSKEYID }} -k ${{ secrets.ACCESSKEYSECRET }} -e oss-cn-beijing.aliyuncs.com cp -rf ./builds/sealer-binaries/${{ steps.catalog.outputs.file5 }} oss://sealer/sealers/${{ steps.prepare.outputs.tag_name }} &&
-          ./ossutil64 -i ${{ secrets.ACCESSKEYID }} -k ${{ secrets.ACCESSKEYSECRET }} -e oss-cn-beijing.aliyuncs.com cp -rf ./builds/sealer-binaries/${{ steps.catalog.outputs.file1 }} oss://sealer/sealer-latest.tar.gz &&
-          ./ossutil64 -i ${{ secrets.ACCESSKEYID }} -k ${{ secrets.ACCESSKEYSECRET }} -e oss-cn-beijing.aliyuncs.com cp -rf ./builds/sealer-binaries/${{ steps.catalog.outputs.file5 }} oss://sealer/sealer-latest-arm64.tar.gz
+          ./ossutil64 -i ${{ secrets.ACCESSKEYID }} -k ${{ secrets.ACCESSKEYSECRET }} -e oss-cn-beijing.aliyuncs.com cp -rf ./builds/sealer-binaries/sealer-$VERSION-amd64.tar.gz oss://sealer/sealers/sealer-$VERSION-amd64.tar.gz &&
+          ./ossutil64 -i ${{ secrets.ACCESSKEYID }} -k ${{ secrets.ACCESSKEYSECRET }} -e oss-cn-beijing.aliyuncs.com cp -rf ./builds/sealer-binaries/sealer-$VERSION-arm64.tar.gz oss://sealer/sealers/sealer-$VERSION-arm64.tar.gz &&
+          ./ossutil64 -i ${{ secrets.ACCESSKEYID }} -k ${{ secrets.ACCESSKEYSECRET }} -e oss-cn-beijing.aliyuncs.com cp -rf ./builds/sealer-binaries/sealer-$VERSION-amd64.tar.gz oss://sealer/sealer-latest.tar.gz &&
+          ./ossutil64 -i ${{ secrets.ACCESSKEYID }} -k ${{ secrets.ACCESSKEYSECRET }} -e oss-cn-beijing.aliyuncs.com cp -rf ./builds/sealer-binaries/sealer-$VERSION-arm64.tar.gz oss://sealer/sealer-latest-arm64.tar.gz
