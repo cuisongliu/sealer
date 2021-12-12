@@ -107,7 +107,7 @@ jobs:
           name: sealer ${{ needs.note.outputs.stringver }}
           draft: false
           prerelease: ${{ contains(github.ref, 'beta') || contains(github.ref, 'rc') }}
-          body_path: ./builds/sealer-release-notes/release-notes.md
+          body_path: ./builds/sealer-release-notes/release_note.md
           files: |
             builds/sealer-binaries/*
       - name: Build binareies to oss
