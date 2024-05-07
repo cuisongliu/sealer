@@ -18,14 +18,23 @@ import (
 	"context"
 
 	"github.com/docker/docker/pkg/progress"
-	v1 "github.com/opencontainers/image-spec/specs-go/v1"
+	v1 "github.com/sealerio/sealer/types/api/v1"
 )
 
-//SaveImage can save a list of images of the specified platform
+// ImageSave can save a list of images of the specified platform
 type ImageSave interface {
 	// SaveImages is not concurrently safe
 	SaveImages(images []string, dir string, platform v1.Platform) error
 }
+
+type Section struct {
+	Registry string             `json:"registry,omitempty"`
+	Username string             `json:"username,omitempty"`
+	Password string             `json:"password,omitempty"`
+	Images   map[string][]Named `json:"images,omitempty"`
+}
+
+type ImageListWithAuth []Section
 
 type DefaultImageSaver struct {
 	ctx            context.Context

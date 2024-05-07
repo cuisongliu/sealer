@@ -21,13 +21,13 @@ import (
 
 type Named struct {
 	domain  string // like ***.com, won't be empty
-	raw     string // this name is going to be local tagname
+	raw     string // this name is going to be local tag name
 	repo    string // k8s, sealer/k8s
 	repoTag string // sealer/k8s:v1.6
 	tag     string // v1.6
 }
 
-// build a ImageNamed
+// ParseToNamed build a ImageNamed
 func ParseToNamed(name string) (Named, error) {
 	name = strings.TrimSpace(name)
 	if err := validate(name); err != nil {
@@ -42,6 +42,17 @@ func ParseToNamed(name string) (Named, error) {
 		return named, errors.New("uppercase is not allowed in image name")
 	}
 	return named, nil
+}
+
+func (n Named) String() string {
+	return n.Name()
+}
+
+func (n Named) Name() string {
+	if n.domain == "" {
+		return n.Repo()
+	}
+	return n.domain + "/" + n.Repo()
 }
 
 func (n Named) Domain() string {

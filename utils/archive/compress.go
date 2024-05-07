@@ -28,9 +28,9 @@ import (
 
 	"golang.org/x/sys/unix"
 
-	"github.com/alibaba/sealer/common"
-	"github.com/alibaba/sealer/logger"
-	"github.com/alibaba/sealer/utils"
+	"github.com/sirupsen/logrus"
+
+	"github.com/sealerio/sealer/common"
 )
 
 const compressionBufSize = 32768
@@ -84,7 +84,7 @@ func GzipCompress(in io.Reader) (io.ReadCloser, chan struct{}) {
 			err = bufWriter.Flush()
 		}
 		if err != nil {
-			// leave the err
+			// leave this err
 			_ = pipeWriter.CloseWithError(err)
 		} else {
 			err := pipeWriter.Close()
@@ -151,9 +151,9 @@ func writeWhiteout(header *tar.Header, fi os.FileInfo, path string) *tar.Header 
 
 	var woh *tar.Header
 	if fi.Mode()&os.ModeDir != 0 {
-		opaque, walkErr := utils.Lgetxattr(path, "trusted.overlay.opaque")
+		opaque, walkErr := Lgetxattr(path, "trusted.overlay.opaque")
 		if walkErr != nil {
-			logger.Debug("failed to get trusted.overlay.opaque for %s at opaque, err: %v", path, walkErr)
+			logrus.Debugf("failed to get trusted.overlay.opaque for %s at opaque, err: %v", path, walkErr)
 		}
 
 		if len(opaque) == 1 && opaque[0] == 'y' {
@@ -250,7 +250,7 @@ func writeToTarWriter(path string, tarWriter *tar.Writer, bufWriter *bufio.Write
 		if walkErr != nil {
 			return fmt.Errorf("failed to write original header, path: %s, err: %v", file, walkErr)
 		}
-		// this is a opaque, write the opaque header, in order to set header.PAXRecords with trusted.overlay.opaque:y
+		// this is an opaque, write the opaque header, in order to set header.PAXRecords with trusted.overlay.opaque:y
 		// when decompress the tar stream.
 		if woh != nil {
 			walkErr = tarWriter.WriteHeader(woh)
@@ -268,7 +268,7 @@ func writeToTarWriter(path string, tarWriter *tar.Writer, bufWriter *bufio.Write
 			}
 			defer func() {
 				if err := fHandler.Close(); err != nil {
-					logger.Fatal("failed to close file")
+					logrus.Errorf("failed to close file: %v", err)
 				}
 			}()
 			bufWriter.Reset(tarWriter)
@@ -327,7 +327,7 @@ func Decompress(src io.Reader, dst string, options Options) (int64, error) {
 	}
 
 	var (
-		size int64 = 0
+		size int64
 		dirs []*tar.Header
 		tr   = tar.NewReader(reader)
 	)
@@ -356,7 +356,7 @@ func Decompress(src io.Reader, dst string, options Options) (int64, error) {
 		if err != nil {
 			return 0, err
 		}
-		// it is a opaque / whiteout, don't write its file content.
+		// it is an opaque / whiteout, don't write its file content.
 		if !goon {
 			continue
 		}
@@ -385,7 +385,7 @@ func Decompress(src io.Reader, dst string, options Options) (int64, error) {
 
 				defer func() {
 					if err := fileToWrite.Close(); err != nil {
-						logger.Fatal("failed to close file")
+						logrus.Errorf("failed to close file: %v", err)
 					}
 				}()
 				if _, inErr = io.Copy(fileToWrite, tr); inErr != nil {

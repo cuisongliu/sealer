@@ -15,7 +15,6 @@
 package settings
 
 import (
-	"fmt"
 	"os"
 	"path/filepath"
 	"time"
@@ -25,25 +24,12 @@ import (
 
 const (
 	SealerBinPath                     = "/usr/local/bin/sealer"
-	ImageName                         = "sealer_test_image_"
-	DefaultImageDomain                = "registry.cn-qingdao.aliyuncs.com"
-	DefaultImageRepo                  = "sealer-io"
-	DefaultImageName                  = "kubernetes:v1.19.8"
+	DefaultImageDomain                = "docker.io"
+	DefaultImageRepo                  = "sealerio"
+	DefaultImageName                  = "kubernetes:v1-22-15-sealerio-2"
 	DefaultRegistryAuthFileDir        = "/root/.docker"
 	DefaultClusterFileNeedToBeCleaned = "/root/.sealer/%s/Clusterfile"
-	SubCmdBuildOfSealer               = "build"
-	SubCmdApplyOfSealer               = "apply"
-	SubCmdDeleteOfSealer              = "delete"
-	SubCmdRunOfSealer                 = "run"
-	SubCmdLoginOfSealer               = "login"
-	SubCmdTagOfSealer                 = "tag"
-	SubCmdPullOfSealer                = "pull"
-	SubCmdListOfSealer                = "images"
-	SubCmdPushOfSealer                = "push"
-	SubCmdRmiOfSealer                 = "rmi"
-	SubCmdForceRmiOfSealer            = "frmi"
-	DefaultSSHPassword                = "Sealer123"
-	ImageAnnotationForClusterfile     = "sea.aliyun.com/ClusterFile"
+	SealerImageRootPath               = "/var/lib/sealer"
 )
 
 const (
@@ -57,10 +43,11 @@ const (
 	BAREMETAL         = "BAREMETAL"
 	AliCloud          = "ALI_CLOUD"
 	CONTAINER         = "CONTAINER"
-	DefaultImage      = "registry.cn-qingdao.aliyuncs.com/sealer-io/kubernetes:v1.19.8"
+	DefaultImage      = "docker.io/sealerio/kubernetes:v1-22-15-sealerio-2"
+	DefaultNydusImage = "registry.cn-qingdao.aliyuncs.com/sealer-io/kubernetes-nydus:v1.19.8"
 	ClusterNameForRun = "my-cluster"
 	TMPClusterFile    = "/tmp/Clusterfile"
-	ClusterWorkDir    = "/root/.sealer/%s"
+	ClusterWorkDir    = "/root/.sealer"
 )
 
 var (
@@ -73,17 +60,19 @@ var (
 	RegistryUsername       = os.Getenv("REGISTRY_USERNAME")
 	RegistryPasswd         = os.Getenv("REGISTRY_PASSWORD")
 	CustomImageName        = os.Getenv("IMAGE_NAME")
+	CustomNydusImageName   = os.Getenv("NYDUS_IMAGE_NAME")
 
-	AccessKey     = os.Getenv("ACCESSKEYID")
-	AccessSecret  = os.Getenv("ACCESSKEYSECRET")
-	Region        = os.Getenv("RegionID")
-	TestImageName = "" //default: registry.cn-qingdao.aliyuncs.com/sealer-io/kubernetes:v1.19.8
+	AccessKey          = os.Getenv("ACCESSKEYID")
+	AccessSecret       = os.Getenv("ACCESSKEYSECRET")
+	Region             = os.Getenv("RegionID")
+	TestImageName      = DefaultImage                                                               //default: docker.io/sealerio/kubernetes:v1-22-15-sealerio-2
+	TestNydusImageName = "registry.cn-qingdao.aliyuncs.com/sealer-io/kubernetes-nydus:v1.19.8.test" //default: registry.cn-qingdao.aliyuncs.com/sealer-io/kubernetes-nydus:v1.19.8
 )
 
 func GetClusterWorkDir(clusterName string) string {
 	home, err := homedir.Dir()
 	if err != nil {
-		return fmt.Sprintf(ClusterWorkDir, clusterName)
+		return filepath.Join(ClusterWorkDir, clusterName)
 	}
 	return filepath.Join(home, ".sealer", clusterName)
 }

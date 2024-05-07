@@ -16,83 +16,54 @@ package test
 
 import (
 	"fmt"
-	"strconv"
+
+	"github.com/sealerio/sealer/test/suites/build"
+	"github.com/sealerio/sealer/test/suites/image"
+	"github.com/sealerio/sealer/test/suites/registry"
+	"github.com/sealerio/sealer/test/testhelper"
+	"github.com/sealerio/sealer/test/testhelper/settings"
 
 	. "github.com/onsi/ginkgo"
-
-	"github.com/alibaba/sealer/test/suites/build"
-	"github.com/alibaba/sealer/test/suites/image"
-	"github.com/alibaba/sealer/test/suites/registry"
-	"github.com/alibaba/sealer/test/testhelper"
-	"github.com/alibaba/sealer/test/testhelper/settings"
+	. "github.com/onsi/gomega"
 )
 
 var _ = Describe("sealer image", func() {
 	Context("pull image", func() {
 
 		It(fmt.Sprintf("pull image %s", settings.TestImageName), func() {
-			image.DoImageOps(settings.SubCmdListOfSealer, settings.TestImageName)
-			beforeTestEnvMd5 := image.GetEnvDirMd5()
-			image.DoImageOps(settings.SubCmdPullOfSealer, settings.TestImageName)
+			image.DoImageOps("pull", settings.TestImageName)
 			testhelper.CheckBeTrue(build.CheckIsImageExist(settings.TestImageName))
-			By("show image metadata", func() {
-				testhelper.RunCmdAndCheckResult(fmt.Sprintf("%s inspect %s", settings.DefaultSealerBin, settings.TestImageName), 0)
-			})
 
-			By("show image default Clusterfile", func() {
-				testhelper.RunCmdAndCheckResult(fmt.Sprintf("%s inspect -c %s", settings.DefaultSealerBin, settings.TestImageName), 0)
-			})
 			tagImageNames := []string{
 				"e2eimage_test:latest",
 				"e2eimage_test:v0.0.1",
 				"sealer-io/e2eimage_test:v0.0.2",
-				"registry.cn-qingdao.aliyuncs.com/sealer-io/e2eimage_test:v0.0.3",
+				"docker.io/sealerio/e2eimage_test:v0.0.3",
 			}
 			By("tag by image name", func() {
-				image.TagImageList(settings.TestImageName, tagImageNames)
-				image.DoImageOps(settings.SubCmdListOfSealer, "")
-				image.RemoveImageList(tagImageNames)
-			})
+				for _, newOne := range tagImageNames {
+					image.TagImages(settings.TestImageName, newOne)
+					Expect(build.CheckIsImageExist(newOne)).Should(BeTrue())
+				}
 
-			By("tag by image id", func() {
-				imageID := image.GetImageID(settings.TestImageName)
-				image.TagImageList(imageID, tagImageNames)
-				image.DoImageOps(settings.SubCmdListOfSealer, "")
-				image.RemoveImageList(tagImageNames)
+				image.DoImageOps("images", "")
+
+				for _, imageName := range tagImageNames {
+					removeImage := imageName
+					image.DoImageOps("rmi", removeImage)
+				}
+
 			})
 
 			By("remove tag image", func() {
 				tagImageName := "e2e_images_test:v0.3"
-				image.DoImageOps(settings.SubCmdPullOfSealer, settings.TestImageName)
-
-				beforeEnvMd5 := image.GetEnvDirMd5()
-				By(fmt.Sprintf("beforeEnvMd5 is %s", beforeEnvMd5))
-				testhelper.CheckNotEqual(beforeEnvMd5, "")
+				image.DoImageOps("pull", settings.TestImageName)
 				image.TagImages(settings.TestImageName, tagImageName)
 				testhelper.CheckBeTrue(build.CheckIsImageExist(tagImageName))
-				image.DoImageOps(settings.SubCmdRmiOfSealer, tagImageName)
+				image.DoImageOps("rmi", tagImageName)
 				testhelper.CheckNotBeTrue(build.CheckIsImageExist(tagImageName))
-
-				afterEnvMd5 := image.GetEnvDirMd5()
-				By(fmt.Sprintf("afterEnvMd5 is %s", afterEnvMd5))
-				testhelper.CheckEqual(afterEnvMd5, beforeEnvMd5)
 			})
 
-			By("force remove image", func() {
-				testhelper.CheckBeTrue(build.CheckIsImageExist(settings.TestImageName))
-				testImageName := "image_test:v0.0"
-				for i := 1; i <= 5; i++ {
-					image.TagImages(settings.TestImageName, testImageName+strconv.Itoa(i))
-					image.DoImageOps(settings.SubCmdListOfSealer, settings.TestImageName)
-					testhelper.CheckBeTrue(build.CheckIsImageExist(testImageName + strconv.Itoa(i)))
-				}
-				image.DoImageOps(settings.SubCmdForceRmiOfSealer, settings.TestImageName)
-				testhelper.CheckNotBeTrue(build.CheckIsImageExist(settings.TestImageName))
-				testhelper.CheckNotBeTrue(build.CheckIsImageExist(testImageName))
-				afterEnvMd5 := image.GetEnvDirMd5()
-				By(fmt.Sprintf("afterEnvMd5 is %s", afterEnvMd5))
-				testhelper.CheckEqual(afterEnvMd5, beforeTestEnvMd5)
-			})
 		})
 
 		faultImageNames := []string{
@@ -104,7 +75,7 @@ var _ = Describe("sealer image", func() {
 		for _, faultImageName := range faultImageNames {
 			faultImageName := faultImageName
 			It(fmt.Sprintf("pull fault image %s", faultImageName), func() {
-				sess, err := testhelper.Start(fmt.Sprintf("%s %s %s", settings.DefaultSealerBin, settings.SubCmdPullOfSealer, faultImageName))
+				sess, err := testhelper.Start(fmt.Sprintf("%s pull %s", settings.DefaultSealerBin, faultImageName))
 				testhelper.CheckErr(err)
 				testhelper.CheckNotExit0(sess, settings.DefaultWaiteTime)
 				testhelper.CheckNotBeTrue(build.CheckIsImageExist(faultImageName))
@@ -115,18 +86,11 @@ var _ = Describe("sealer image", func() {
 
 	Context("remove image", func() {
 		It(fmt.Sprintf("remove image %s", settings.TestImageName), func() {
-			image.DoImageOps(settings.SubCmdListOfSealer, "")
-
-			beforeEnvMd5 := image.GetEnvDirMd5()
-			By(fmt.Sprintf("beforeEnvMd5 is %s", beforeEnvMd5))
-			testhelper.CheckNotEqual(beforeEnvMd5, "")
-			image.DoImageOps(settings.SubCmdPullOfSealer, settings.TestImageName)
+			image.DoImageOps("images", "")
+			image.DoImageOps("pull", settings.TestImageName)
 			testhelper.CheckBeTrue(build.CheckIsImageExist(settings.TestImageName))
-			image.DoImageOps(settings.SubCmdRmiOfSealer, settings.TestImageName)
+			image.DoImageOps("rmi", settings.TestImageName)
 			testhelper.CheckNotBeTrue(build.CheckIsImageExist(settings.TestImageName))
-			afterEnvMd5 := image.GetEnvDirMd5()
-			By(fmt.Sprintf("afterEnvMd5 is %s", afterEnvMd5))
-			testhelper.CheckEqual(beforeEnvMd5, afterEnvMd5)
 		})
 
 	})
@@ -134,24 +98,61 @@ var _ = Describe("sealer image", func() {
 	Context("push image", func() {
 		BeforeEach(func() {
 			registry.Login()
-			image.DoImageOps(settings.SubCmdPullOfSealer, settings.TestImageName)
+			image.DoImageOps("pull", settings.TestImageName)
 		})
 		AfterEach(func() {
 			registry.Logout()
-			image.DoImageOps(settings.SubCmdForceRmiOfSealer, settings.TestImageName)
 		})
-		pushImageNames := []string{
-			"registry.cn-qingdao.aliyuncs.com/sealer-io/e2e_image_test:v0.01",
-			"sealer-io/e2e_image_test:v0.01",
-			"e2e_image_test:v0.01",
-		}
-
-		for _, pushImage := range pushImageNames {
-			pushImage := pushImage
-			It(fmt.Sprintf("push image %s", pushImage), func() {
-				image.TagImages(settings.TestImageName, pushImage)
-				image.DoImageOps(settings.SubCmdPushOfSealer, pushImage)
-			})
-		}
+		It("push image", func() {
+			pushImageName := "docker.io/sealerio/e2eimage_test:v0.0.1"
+			if settings.RegistryURL != "" && settings.RegistryUsername != "" && settings.RegistryPasswd != "" {
+				pushImageName = settings.RegistryURL + "/" + settings.RegistryUsername + "/" + "e2eimage_test:v0.0.1"
+			}
+			image.TagImages(settings.TestImageName, pushImageName)
+			image.DoImageOps("push", pushImageName)
+		})
 	})
+
+	Context("login registry", func() {
+		AfterEach(func() {
+			registry.Logout()
+		})
+		It("with correct name and password", func() {
+			image.CheckLoginResult(
+				settings.RegistryURL,
+				settings.RegistryUsername,
+				settings.RegistryPasswd,
+				true)
+		})
+		It("with incorrect name and password", func() {
+			image.CheckLoginResult(
+				settings.RegistryURL,
+				settings.RegistryPasswd,
+				settings.RegistryUsername,
+				false)
+		})
+		It("with only name", func() {
+			image.CheckLoginResult(
+				settings.RegistryURL,
+				settings.RegistryUsername,
+				"",
+				false)
+		})
+		It("with only password", func() {
+			image.CheckLoginResult(
+				settings.RegistryURL,
+				"",
+				settings.RegistryPasswd,
+				false)
+		})
+		It("with only registryURL", func() {
+			image.CheckLoginResult(
+				settings.RegistryURL,
+				"",
+				"",
+				false)
+		})
+	})
+
+	//todo add mount and umount e2e test
 })

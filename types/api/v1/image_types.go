@@ -15,6 +15,8 @@
 package v1
 
 import (
+	"strings"
+
 	"github.com/opencontainers/go-digest"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -35,7 +37,6 @@ type ImageSpec struct {
 
 	// Foo is an example field of Image. Edit Image_types.go to remove/update
 	ID            string      `json:"id,omitempty"`
-	MergedLayer   string      `json:"mergedLayer,omitempty"`
 	Layers        []Layer     `json:"layers,omitempty"`
 	SealerVersion string      `json:"sealer_version,omitempty"`
 	Platform      Platform    `json:"platform"`
@@ -72,18 +73,40 @@ type ImageList struct {
 }
 
 type ImageConfig struct {
-	Args   map[string]string `json:"args"`
-	Labels map[string]string `json:"labels"`
+	// define this image is application image or normal image.
+	ImageType string            `json:"image_type,omitempty"`
+	Cmd       ImageCmd          `json:"cmd,omitempty"`
+	Args      ImageArg          `json:"args,omitempty"`
+	Labels    map[string]string `json:"labels,omitempty"`
+}
+
+type ImageCmd struct {
+	//cmd list of base image
+	Parent []string `json:"parent,omitempty"`
+	//cmd list of current image
+	Current []string `json:"current,omitempty"`
+}
+
+type ImageArg struct {
+	//arg set of base image
+	Parent map[string]string `json:"parent,omitempty"`
+	//arg set of current image
+	Current map[string]string `json:"current,omitempty"`
 }
 
 type Platform struct {
 	Architecture string `json:"architecture,omitempty"`
 	OS           string `json:"os,omitempty"`
-	// OSVersion is an optional field specifying the operating system version.
-	OSVersion string `json:"os_version,omitempty"`
 	// Variant is an optional field specifying a variant of the CPU, for
 	// example `v7` to specify ARMv7 when architecture is `arm`.
 	Variant string `json:"variant,omitempty"`
+}
+
+func (p *Platform) ToString() string {
+	str := p.OS + "/" + p.Architecture + "/" + p.Variant
+	str = strings.TrimSuffix(str, "/")
+	str = strings.TrimPrefix(str, "/")
+	return str
 }
 
 func init() {

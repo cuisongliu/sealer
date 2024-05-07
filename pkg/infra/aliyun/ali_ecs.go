@@ -26,10 +26,12 @@ import (
 	"github.com/aliyun/alibaba-cloud-sdk-go/sdk/requests"
 	"github.com/aliyun/alibaba-cloud-sdk-go/sdk/responses"
 	"github.com/aliyun/alibaba-cloud-sdk-go/services/ecs"
+	"github.com/sirupsen/logrus"
 
-	"github.com/alibaba/sealer/logger"
-	v1 "github.com/alibaba/sealer/types/api/v1"
-	"github.com/alibaba/sealer/utils"
+	v1 "github.com/sealerio/sealer/types/api/v1"
+	"github.com/sealerio/sealer/utils"
+	utilsnet "github.com/sealerio/sealer/utils/net"
+	strUtils "github.com/sealerio/sealer/utils/strings"
 )
 
 type Instance struct {
@@ -50,11 +52,7 @@ func (a *AliProvider) RetryEcsRequest(request requests.AcsRequest, response resp
 
 func (a *AliProvider) RetryEcsAction(request requests.AcsRequest, response responses.AcsResponse, tryTimes int) error {
 	return utils.Retry(tryTimes, TrySleepTime, func() error {
-		err := a.EcsClient.DoAction(request, response)
-		if err != nil {
-			return err
-		}
-		return nil
+		return a.EcsClient.DoAction(request, response)
 	})
 }
 
@@ -68,7 +66,7 @@ func (a *AliProvider) RetryEcsInstanceType(request requests.AcsRequest, response
 		}
 		err := a.RetryEcsAction(request, response, 4)
 		if err == nil {
-			logger.Debug("use instance type: %s", instances[i])
+			logrus.Debugf("use instance type: %s", instances[i])
 			break
 		} else if i == len(instances)-1 {
 			return fmt.Errorf("failed to get ecs instance type, %v", err)
@@ -79,11 +77,10 @@ func (a *AliProvider) RetryEcsInstanceType(request requests.AcsRequest, response
 
 func (a *AliProvider) TryGetInstance(request *ecs.DescribeInstancesRequest, response *ecs.DescribeInstancesResponse, expectCount int) error {
 	return utils.Retry(TryTimes, TrySleepTime, func() error {
-		err := a.EcsClient.DoAction(request, response)
-		var ipList []string
-		if err != nil {
+		if err := a.EcsClient.DoAction(request, response); err != nil {
 			return err
 		}
+		var ipList []string
 		instances := response.Instances.Instance
 		if expectCount == -1 {
 			return nil
@@ -94,10 +91,10 @@ func (a *AliProvider) TryGetInstance(request *ecs.DescribeInstancesRequest, resp
 		}
 		for _, instance := range instances {
 			if instance.NetworkInterfaces.NetworkInterface[0].PrimaryIpAddress == "" {
-				return errors.New("PrimaryIpAddress cannt nob be nil")
+				return errors.New("PrimaryIpAddress cannot nob be nil")
 			}
-			if len(ipList) != 0 && !utils.NotIn(instance.NetworkInterfaces.NetworkInterface[0].PrimaryIpAddress, ipList) {
-				return errors.New("PrimaryIpAddress cannt nob be same")
+			if len(ipList) != 0 && strUtils.IsInSlice(instance.NetworkInterfaces.NetworkInterface[0].PrimaryIpAddress, ipList) {
+				return errors.New("PrimaryIpAddress cannot nob be same")
 			}
 
 			ipList = append(ipList, instance.NetworkInterfaces.NetworkInterface[0].PrimaryIpAddress)
@@ -299,8 +296,9 @@ func (a *AliProvider) ReconcileInstances(instanceRole string) error {
 		if err != nil {
 			return err
 		}
-		hosts.IPList = utils.AppendDiffSlice(hosts.IPList, ipList)
-		logger.Info("get scale up IP list %v, append iplist %v, host count %s", ipList, hosts.IPList, hosts.Count)
+		IPStrList := utilsnet.IPsToIPStrs(hosts.IPList)
+		hosts.IPList = utilsnet.IPStrsToIPs(strUtils.NewComparator(IPStrList, ipList).GetUnion())
+		logrus.Infof("get scale up IP list %v, append iplist %v, host count %s", ipList, hosts.IPList, hosts.Count)
 	} else if len(instances) > i {
 		var deleteInstancesIDs []string
 		var count int
@@ -326,7 +324,8 @@ func (a *AliProvider) ReconcileInstances(instanceRole string) error {
 		if err != nil {
 			return err
 		}
-		hosts.IPList = utils.ReduceStrSlice(hosts.IPList, ipList)
+		IPStrList := utilsnet.IPsToIPStrs(hosts.IPList)
+		hosts.IPList = utilsnet.IPStrsToIPs(strUtils.NewComparator(IPStrList, ipList).GetIntersection())
 	}
 
 	cpu, err := strconv.Atoi(hosts.CPU)
@@ -347,7 +346,7 @@ func (a *AliProvider) ReconcileInstances(instanceRole string) error {
 		}
 	}
 
-	logger.Info("reconcile %s instances success %v ", instanceRole, hosts.IPList)
+	logrus.Infof("reconcile %s instances success %v ", instanceRole, hosts.IPList)
 	return nil
 }
 
@@ -362,10 +361,10 @@ func (a *AliProvider) DeleteInstances() error {
 	request.Force = requests.NewBoolean(true)
 	//_, err := d.Client.DeleteInstances(request)
 	response := ecs.CreateDeleteInstancesResponse()
-	err := a.RetryEcsRequest(request, response)
-	if err != nil {
+	if err := a.RetryEcsRequest(request, response); err != nil {
 		return err
 	}
+
 	a.Cluster.Annotations[ShouldBeDeleteInstancesIDs] = ""
 	return nil
 }
@@ -483,9 +482,8 @@ func (a *AliProvider) AuthorizeSecurityGroup(securityGroupID, portRange string) 
 
 	//response, err := d.Client.AuthorizeSecurityGroup(request)
 	response := ecs.CreateAuthorizeSecurityGroupResponse()
-	err := a.RetryEcsRequest(request, response)
-	if err != nil {
-		logger.Error("%v", err)
+	if err := a.RetryEcsRequest(request, response); err != nil {
+		logrus.Errorf("%v", err)
 		return false
 	}
 	return response.BaseResponse.IsSuccess()
@@ -498,8 +496,7 @@ func (a *AliProvider) CreateSecurityGroup() error {
 	request.VpcId = a.Cluster.GetAnnotationsByKey(VpcID)
 	//response, err := d.Client.CreateSecurityGroup(request)
 	response := ecs.CreateCreateSecurityGroupResponse()
-	err := a.RetryEcsRequest(request, response)
-	if err != nil {
+	if err := a.RetryEcsRequest(request, response); err != nil {
 		return err
 	}
 

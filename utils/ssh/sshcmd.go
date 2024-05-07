@@ -15,19 +15,26 @@
 package ssh
 
 import (
-	"bufio"
+	"bytes"
 	"fmt"
-	"io"
+	"net"
+	"os/exec"
 	"strings"
-	"sync"
 
-	"github.com/alibaba/sealer/utils"
+	"github.com/sealerio/sealer/common"
+	"github.com/sealerio/sealer/pkg/env"
+	utilsnet "github.com/sealerio/sealer/utils/net"
 )
 
-func (s *SSH) Ping(host string) error {
+const SUDO = "sudo "
+
+func (s *SSH) Ping(host net.IP) error {
+	if utilsnet.IsLocalIP(host, s.LocalAddress) {
+		return nil
+	}
 	client, _, err := s.Connect(host)
 	if err != nil {
-		return fmt.Errorf("[ssh %s]create ssh session failed, %v", host, err)
+		return fmt.Errorf("failed to ping node %s using ssh session: %v", host, err)
 	}
 	err = client.Close()
 	if err != nil {
@@ -36,13 +43,44 @@ func (s *SSH) Ping(host string) error {
 	return nil
 }
 
-func (s *SSH) CmdAsync(host string, cmds ...string) error {
-	for _, cmd := range cmds {
-		if cmd == "" {
-			continue
-		}
+func (s *SSH) CmdAsync(host net.IP, hostEnv map[string]string, cmds ...string) error {
+	// force specify PATH env
+	if hostEnv == nil {
+		hostEnv = map[string]string{}
+	}
+	if hostEnv["PATH"] == "" {
+		hostEnv["PATH"] = "/sbin:/bin:/usr/sbin:/usr/bin:/usr/local/bin"
+	}
 
-		if err := func(cmd string) error {
+	var execFunc func(cmd string) error
+
+	if utilsnet.IsLocalIP(host, s.LocalAddress) {
+		execFunc = func(cmd string) error {
+			c := exec.Command("/bin/bash", "-c", cmd)
+			stdout, err := c.StdoutPipe()
+			if err != nil {
+				return err
+			}
+
+			stderr, err := c.StderrPipe()
+			if err != nil {
+				return err
+			}
+
+			if err := c.Start(); err != nil {
+				return fmt.Errorf("failed to start command %s: %v", cmd, err)
+			}
+
+			ReadPipe(stdout, stderr, s.AlsoToStdout)
+
+			err = c.Wait()
+			if err != nil {
+				return fmt.Errorf("failed to execute command(%s) on host(%s): error(%v)", cmd, host, err)
+			}
+			return nil
+		}
+	} else {
+		execFunc = func(cmd string) error {
 			client, session, err := s.Connect(host)
 			if err != nil {
 				return fmt.Errorf("failed to create ssh session for %s: %v", host, err)
@@ -62,26 +100,27 @@ func (s *SSH) CmdAsync(host string, cmds ...string) error {
 				return fmt.Errorf("failed to start command %s on %s: %v", cmd, host, err)
 			}
 
-			var combineSlice []string
-			var combineLock sync.Mutex
-			doneout := make(chan error, 1)
-			doneerr := make(chan error, 1)
-			go func() {
-				doneerr <- readPipe(stderr, &combineSlice, &combineLock, s.isStdout)
-			}()
-			go func() {
-				doneout <- readPipe(stdout, &combineSlice, &combineLock, s.isStdout)
-			}()
-			<-doneerr
-			<-doneout
+			ReadPipe(stdout, stderr, s.AlsoToStdout)
 
 			err = session.Wait()
 			if err != nil {
-				return utils.WrapExecResult(host, cmd, []byte(strings.Join(combineSlice, "\n")), err)
+				return fmt.Errorf("failed to execute command(%s) on host(%s): error(%v)", cmd, host, err)
 			}
 
 			return nil
-		}(cmd); err != nil {
+		}
+	}
+
+	for _, cmd := range cmds {
+		if cmd == "" {
+			continue
+		}
+		if s.User != common.ROOT {
+			cmd = fmt.Sprintf("sudo -E /bin/bash <<EOF\n%s\nEOF", cmd)
+		}
+		cmd = env.WrapperShell(cmd, hostEnv)
+
+		if err := execFunc(cmd); err != nil {
 			return err
 		}
 	}
@@ -89,34 +128,60 @@ func (s *SSH) CmdAsync(host string, cmds ...string) error {
 	return nil
 }
 
-func (s *SSH) Cmd(host, cmd string) ([]byte, error) {
+func (s *SSH) Cmd(host net.IP, hostEnv map[string]string, cmd string) ([]byte, error) {
+	// force specify PATH env
+	if hostEnv == nil {
+		hostEnv = map[string]string{}
+	}
+	if hostEnv["PATH"] == "" {
+		hostEnv["PATH"] = "/sbin:/bin:/usr/sbin:/usr/bin:/usr/local/bin"
+	}
+
+	if s.User != common.ROOT {
+		cmd = fmt.Sprintf("sudo -E /bin/bash <<EOF\n%s\nEOF", cmd)
+	}
+	cmd = env.WrapperShell(cmd, hostEnv)
+
+	var stdoutContent, stderrContent bytes.Buffer
+
+	if utilsnet.IsLocalIP(host, s.LocalAddress) {
+		localCmd := exec.Command("/bin/bash", "-c", cmd)
+		localCmd.Stdout = &stdoutContent
+		localCmd.Stderr = &stderrContent
+		if err := localCmd.Run(); err != nil {
+			return stdoutContent.Bytes(), fmt.Errorf("failed to execute command(%s) on host(%s): error(%v)", cmd, host, stderrContent.String())
+		}
+		return stdoutContent.Bytes(), nil
+	}
+
 	client, session, err := s.Connect(host)
 	if err != nil {
-		return nil, fmt.Errorf("[ssh][%s] create ssh session failed, %s", host, err)
+		return nil, fmt.Errorf("[ssh][%s] failed to create ssh session: %s", host, err)
 	}
 	defer client.Close()
 	defer session.Close()
-	b, err := session.CombinedOutput(cmd)
-	if err != nil {
-		return b, fmt.Errorf("[ssh][%s]run command failed [%s]", host, cmd)
+
+	session.Stdout = &stdoutContent
+	session.Stderr = &stderrContent
+	if err := session.Run(cmd); err != nil {
+		return stdoutContent.Bytes(), fmt.Errorf("[ssh][%s]failed to run command[%s]: %s", host, cmd, stderrContent.String())
 	}
 
-	return b, nil
+	return stdoutContent.Bytes(), nil
 }
 
-func readPipe(pipe io.Reader, combineSlice *[]string, combineLock *sync.Mutex, isStdout bool) error {
-	r := bufio.NewReader(pipe)
-	for {
-		line, _, err := r.ReadLine()
-		if err != nil {
-			return err
-		}
-
-		combineLock.Lock()
-		*combineSlice = append(*combineSlice, string(line))
-		if isStdout {
-			fmt.Println(string(line))
-		}
-		combineLock.Unlock()
+// CmdToString is in host exec cmd and replace to spilt str
+func (s *SSH) CmdToString(host net.IP, env map[string]string, cmd, split string) (string, error) {
+	data, err := s.Cmd(host, env, cmd)
+	str := string(data)
+	if err != nil {
+		return str, err
 	}
+	if data != nil {
+		str = strings.ReplaceAll(str, "\r", split)
+		str = strings.ReplaceAll(str, "\r\n", split)
+		str = strings.ReplaceAll(str, "\n", split)
+		return str, nil
+	}
+	return str, fmt.Errorf("command %s %s return nil", host, cmd)
 }

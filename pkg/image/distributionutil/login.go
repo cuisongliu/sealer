@@ -17,9 +17,11 @@ package distributionutil
 import (
 	"context"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -29,6 +31,7 @@ import (
 	"github.com/docker/docker/dockerversion"
 	dockerRegistry "github.com/docker/docker/registry"
 	"github.com/pkg/errors"
+	"github.com/sirupsen/logrus"
 )
 
 func Login(ctx context.Context, authConfig *types.AuthConfig) error {
@@ -44,6 +47,9 @@ func Login(ctx context.Context, authConfig *types.AuthConfig) error {
 	modifiers := dockerRegistry.Headers(dockerversion.DockerUserAgent(ctx), nil)
 	base := dockerRegistry.NewTransport(nil)
 	base.TLSClientConfig.InsecureSkipVerify = os.Getenv("SKIP_TLS_VERIFY") == "true"
+	if err := dockerRegistry.ReadCertsDirectory(base.TLSClientConfig, filepath.Join(dockerRegistry.CertsDir(), endpointURL.Host)); err != nil {
+		return err
+	}
 	authTransport := transport.NewTransport(base, modifiers...)
 
 	credentialAuthConfig := *authConfig
@@ -68,7 +74,12 @@ func Login(ctx context.Context, authConfig *types.AuthConfig) error {
 		}
 		return err
 	}
-	defer resp.Body.Close()
+	defer func(Body io.ReadCloser) {
+		err := Body.Close()
+		if err != nil {
+			logrus.Warnf("failed to close http reader")
+		}
+	}(resp.Body)
 
 	if resp.StatusCode == http.StatusOK {
 		return nil
@@ -80,7 +91,7 @@ func Login(ctx context.Context, authConfig *types.AuthConfig) error {
 }
 
 func authHTTPClient(endpoint *url.URL, authTransport http.RoundTripper, modifiers []transport.RequestModifier, creds auth.CredentialStore, scopes []auth.Scope) (*http.Client, error) {
-	challengeManager, err := dockerRegistry.PingV2Registry(endpoint, authTransport)
+	challengeManager, _, err := dockerRegistry.PingV2Registry(endpoint, authTransport)
 	if err != nil {
 		return nil, err
 	}

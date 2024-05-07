@@ -1,7 +1,7 @@
 # Clusterfile definition
 
 ```yaml
-apiVersion: sealer.aliyun.com/v1alpha1
+apiVersion: sealer.io/v1
 kind: Cluster
 metadata:
   name: my-cluster
@@ -9,7 +9,7 @@ metadata:
     sealer.aliyun.com/etcd: "/data/etcd"
     sealer.aliyun.com/docker: "/var/lib/docker"
 spec:
-  image: my-kubernetes:v1.18.3 # name of CloudImage
+  image: my-kubernetes:v1.18.3 # name of ClusterImage
   env: # the cluster global ENV
   - DOMAIN="sealer.alibaba.com"
   provider: ALI_CLOUD # OR BAREMETAL , CONTAINER.
@@ -24,7 +24,8 @@ spec:
   certSANS:
     - aliyun-inc.com
     - 10.0.0.2
-
+  containerRuntime:
+    type: docker
   masters: # if provider is ALI_CLOUD or CONTAINER, you can specify the number of server, if BAREMETAL using ipList.
     cpu: 4
     memory: 8

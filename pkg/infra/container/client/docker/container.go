@@ -19,10 +19,13 @@ import (
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/mount"
 	"github.com/docker/docker/api/types/network"
+	"github.com/sirupsen/logrus"
 
-	"github.com/alibaba/sealer/pkg/infra/container/client"
+	"github.com/sealerio/sealer/pkg/infra/container/client"
+)
 
-	"github.com/alibaba/sealer/logger"
+const (
+	CgroupNoneDriver = "none"
 )
 
 func (p *Provider) getUserNsMode() (container.UsernsMode, error) {
@@ -107,7 +110,7 @@ func (p *Provider) RunContainer(opts *client.CreateOptsForContainer) (string, er
 	if err != nil {
 		return "", err
 	}
-	logger.Info("create container %s successfully", opts.ContainerName)
+	logrus.Infof("create container %s successfully", opts.ContainerName)
 	return resp.ID, nil
 }
 
@@ -151,7 +154,7 @@ func (p *Provider) RmContainer(containerID string) error {
 		return err
 	}
 
-	logger.Info("delete container %s successfully", containerID)
+	logrus.Infof("delete container %s successfully", containerID)
 	return nil
 }
 
@@ -161,14 +164,21 @@ func (p *Provider) GetServerInfo() (*client.DockerInfo, error) {
 		return nil, err
 	}
 
-	return &client.DockerInfo{
-		CgroupDriver:    sysInfo.CgroupDriver,
-		CgroupVersion:   sysInfo.CgroupVersion,
-		StorageDriver:   sysInfo.Driver,
-		MemoryLimit:     sysInfo.MemoryLimit,
-		PidsLimit:       sysInfo.PidsLimit,
-		CPUShares:       sysInfo.CPUShares,
-		CPUNumber:       sysInfo.NCPU,
-		SecurityOptions: sysInfo.SecurityOptions,
-	}, nil
+	var dInfo client.DockerInfo
+
+	// When CgroupDriver == "none", the MemoryLimit/PidsLimit/CPUShares
+	// values are meaningless and need to be considered false.
+	// https://github.com/moby/moby/issues/42151
+	dInfo.CgroupVersion = sysInfo.CgroupVersion
+	dInfo.StorageDriver = sysInfo.Driver
+	dInfo.SecurityOptions = sysInfo.SecurityOptions
+	dInfo.CgroupDriver = sysInfo.CgroupDriver
+	if sysInfo.CgroupDriver == CgroupNoneDriver {
+		return &dInfo, nil
+	}
+	dInfo.MemoryLimit = sysInfo.MemoryLimit
+	dInfo.PidsLimit = sysInfo.PidsLimit
+	dInfo.CPUShares = sysInfo.CPUShares
+	dInfo.CPUNumber = sysInfo.NCPU
+	return &dInfo, nil
 }

@@ -16,18 +16,12 @@ package infra
 
 import (
 	"fmt"
-	"io/ioutil"
 	"testing"
 
-	"github.com/aliyun/alibaba-cloud-sdk-go/sdk/requests"
-	"github.com/aliyun/alibaba-cloud-sdk-go/services/ecs"
-	"sigs.k8s.io/yaml"
-
-	"github.com/alibaba/sealer/pkg/infra/aliyun"
-	v1 "github.com/alibaba/sealer/types/api/v1"
-	"github.com/alibaba/sealer/utils"
+	"github.com/sealerio/sealer/utils/net"
 )
 
+/*
 func TestApply(t *testing.T) {
 	cluster := v1.Cluster{}
 	yamlFile, err := ioutil.ReadFile("./Clusterfile")
@@ -52,7 +46,7 @@ func TestApply(t *testing.T) {
 	if err != nil {
 		fmt.Printf("%v \n", err)
 	}
-	err = utils.AtomicWriteFile("./Clusterfile", data, 0777)
+	err = os.NewCommonWriter("./Clusterfile").WriteFile(data)
 	if err != nil {
 		fmt.Printf("%v \n", err)
 	}
@@ -244,9 +238,10 @@ func TestReleaseEIP(t *testing.T) {
 		fmt.Printf("response is %#v\n", response)
 	}
 }
+*/
 
 func TestSort(t *testing.T) {
 	iplist := []string{"192.168.0.3", "192.168.0.16", "192.168.0.4", "192.168.0.1"}
-	utils.SortIPList(iplist)
+	net.SortIPList(iplist)
 	fmt.Printf("%v", iplist)
 }

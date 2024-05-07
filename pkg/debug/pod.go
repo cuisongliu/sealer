@@ -19,47 +19,10 @@ import (
 	"fmt"
 
 	"github.com/pkg/errors"
-	"github.com/spf13/cobra"
 	corev1 "k8s.io/api/core/v1"
-	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	utilrand "k8s.io/apimachinery/pkg/util/rand"
-
-	"github.com/alibaba/sealer/common"
 )
-
-func NewDebugPodCommand(options *DebuggerOptions) *cobra.Command {
-	cmd := &cobra.Command{
-		Use:   "pod",
-		Short: "Debug pod or container",
-		Args:  cobra.MinimumNArgs(1),
-		RunE: func(cmd *cobra.Command, args []string) error {
-			debugger := NewDebugger(options)
-			debugger.AdminKubeConfigPath = common.KubeAdminConf
-			debugger.Type = TypeDebugPod
-			debugger.Motd = SealerDebugMotd
-
-			imager := NewDebugImagesManager()
-
-			if err := debugger.CompleteAndVerifyOptions(cmd, args, imager); err != nil {
-				return err
-			}
-			str, err := debugger.Run()
-			if err != nil {
-				return err
-			}
-			if len(str) != 0 {
-				fmt.Println("The debug ID:", str)
-			}
-
-			return nil
-		},
-	}
-
-	cmd.Flags().StringVarP(&options.TargetContainer, "container", "c", "", "The container to be debugged.")
-
-	return cmd
-}
 
 func (debugger *Debugger) DebugPod(ctx context.Context) (*corev1.Pod, error) {
 	// get the target pod object
@@ -88,21 +51,15 @@ func (debugger *Debugger) DebugPod(ctx context.Context) (*corev1.Pod, error) {
 func (debugger *Debugger) debugPodByEphemeralContainer(ctx context.Context, pod *corev1.Pod) (*corev1.Pod, error) {
 	// get ephemeral containers
 	pods := debugger.kubeClientCorev1.Pods(pod.Namespace)
-	ec, err := pods.GetEphemeralContainers(ctx, pod.Name, metav1.GetOptions{})
-	if err != nil {
-		if serr, ok := err.(*apierrors.StatusError); ok && serr.Status().Reason == metav1.StatusReasonNotFound && serr.ErrStatus.Details.Name == "" {
-			return nil, errors.Wrapf(err, "ephemeral container are disabled for this cluster")
-		}
-		return nil, err
-	}
+
+	ephemeralContainers := pod.Spec.EphemeralContainers
 
 	// generate an ephemeral container
 	debugContainer := debugger.generateDebugContainer(pod)
 
 	// add the ephemeral container and update the pod
-	ec.EphemeralContainers = append(ec.EphemeralContainers, *debugContainer)
-	_, err = pods.UpdateEphemeralContainers(ctx, pod.Name, ec, metav1.UpdateOptions{})
-	if err != nil {
+	pod.Spec.EphemeralContainers = append(ephemeralContainers, *debugContainer)
+	if _, err := pods.UpdateEphemeralContainers(ctx, pod.Name, pod, metav1.UpdateOptions{}); err != nil {
 		return nil, errors.Wrapf(err, "error updating ephermeral containers")
 	}
 

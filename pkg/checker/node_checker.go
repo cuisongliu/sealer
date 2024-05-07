@@ -20,10 +20,11 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 
-	"github.com/alibaba/sealer/common"
-	"github.com/alibaba/sealer/logger"
-	"github.com/alibaba/sealer/pkg/client/k8s"
-	v2 "github.com/alibaba/sealer/types/api/v2"
+	"github.com/sirupsen/logrus"
+
+	"github.com/sealerio/sealer/common"
+	"github.com/sealerio/sealer/pkg/client/k8s"
+	v2 "github.com/sealerio/sealer/types/api/v2"
 )
 
 const (
@@ -47,7 +48,7 @@ func (n *NodeChecker) Check(cluster *v2.Cluster, phase string) error {
 		return nil
 	}
 	// checker if all the node is ready
-	c, err := k8s.Newk8sClient()
+	c, err := k8s.NewK8sClient()
 	if err != nil {
 		return err
 	}
@@ -57,9 +58,9 @@ func (n *NodeChecker) Check(cluster *v2.Cluster, phase string) error {
 		return err
 	}
 	var notReadyNodeList []string
-	var readyCount uint32 = 0
+	var readyCount uint32
 	var nodeCount uint32
-	var notReadyCount uint32 = 0
+	var notReadyCount uint32
 	for _, node := range nodes.Items {
 		nodeIP, nodePhase := getNodeStatus(node)
 		if nodePhase != ReadyNodeStatus {
@@ -105,7 +106,7 @@ func (n *NodeChecker) Output(nodeCLusterStatus NodeClusterStatus) error {
 	t = template.Must(t, err)
 	err = t.Execute(common.StdOut, nodeCLusterStatus)
 	if err != nil {
-		logger.Error("node checkers template can not excute %s", err)
+		logrus.Errorf("failed to execute node checkers template: %s", err)
 		return err
 	}
 	return nil

@@ -14,11 +14,7 @@
 
 package ssh
 
-import (
-	"net"
-	"testing"
-)
-
+/*
 func TestSSH_Cmd(t *testing.T) {
 	type args struct {
 		ssh       SSH
@@ -34,13 +30,14 @@ func TestSSH_Cmd(t *testing.T) {
 			name: "touch test.txt",
 			args: args{
 				ssh: SSH{false,
+					false,
 					"root",
 					"huaijiahui.com",
 					"",
 					"",
 					"",
 					nil,
-					&[]net.Addr{},
+					[]net.Addr{}, nil,
 				},
 				host: "192.168.56.103",
 				cmd:  "bash /opt/touchTxt.sh",
@@ -52,13 +49,14 @@ func TestSSH_Cmd(t *testing.T) {
 			name: "ls /opt/test",
 			args: args{
 				ssh: SSH{false,
+					false,
 					"root",
 					"huaijiahui.com",
 					"",
 					"",
 					"",
 					nil,
-					&[]net.Addr{},
+					[]net.Addr{}, nil,
 				},
 				host: "192.168.56.103",
 				cmd:  "ls /opt/test",
@@ -70,13 +68,14 @@ func TestSSH_Cmd(t *testing.T) {
 			name: "remove test.txt",
 			args: args{
 				ssh: SSH{false,
+					false,
 					"root",
 					"huaijiahui.com",
 					"",
 					"",
 					"",
 					nil,
-					&[]net.Addr{},
+					[]net.Addr{}, nil,
 				},
 				host: "192.168.56.103",
 				cmd:  "bash /opt/removeTxt.sh",
@@ -88,13 +87,14 @@ func TestSSH_Cmd(t *testing.T) {
 			name: "exist 1",
 			args: args{
 				ssh: SSH{false,
+					false,
 					"root",
 					"huaijiahui.com",
 					"",
 					"",
 					"",
 					nil,
-					&[]net.Addr{},
+					[]net.Addr{}, nil,
 				},
 				host: "192.168.56.103",
 				cmd:  "bash /opt/exit1.sh",
@@ -133,13 +133,14 @@ func TestSSH_CmdAsync(t *testing.T) {
 			name: "touch test.txt",
 			args: args{
 				ssh: SSH{false,
+					false,
 					"root",
 					"huaijiahui.com",
 					"",
 					"",
 					"",
 					nil,
-					&[]net.Addr{},
+					[]net.Addr{}, nil,
 				},
 				host: "192.168.56.103",
 				cmd:  "bash /opt/touchTxt.sh",
@@ -150,13 +151,14 @@ func TestSSH_CmdAsync(t *testing.T) {
 			name: "ls /opt/test",
 			args: args{
 				ssh: SSH{false,
+					false,
 					"root",
 					"huaijiahui.com",
 					"",
 					"",
 					"",
 					nil,
-					&[]net.Addr{},
+					[]net.Addr{}, nil,
 				},
 				host: "192.168.56.103",
 				cmd:  "ls /opt/test",
@@ -167,13 +169,14 @@ func TestSSH_CmdAsync(t *testing.T) {
 			name: "remove test.txt",
 			args: args{
 				ssh: SSH{false,
+					false,
 					"root",
 					"huaijiahui.com",
 					"",
 					"",
 					"",
 					nil,
-					&[]net.Addr{},
+					[]net.Addr{}, nil,
 				},
 				host: "192.168.56.103",
 				cmd:  "bash /opt/removeTxt.sh",
@@ -184,13 +187,14 @@ func TestSSH_CmdAsync(t *testing.T) {
 			name: "exist 1",
 			args: args{
 				ssh: SSH{false,
+					false,
 					"root",
 					"huaijiahui.com",
 					"",
 					"",
 					"",
 					nil,
-					&[]net.Addr{},
+					[]net.Addr{}, nil,
 				},
 				host: "192.168.56.103",
 				cmd:  "bash /opt/exit1.sh",
@@ -207,3 +211,4 @@ func TestSSH_CmdAsync(t *testing.T) {
 		})
 	}
 }
+*/

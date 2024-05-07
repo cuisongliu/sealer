@@ -17,12 +17,12 @@ package registry
 import (
 	"fmt"
 
+	"github.com/sealerio/sealer/test/testhelper"
+	"github.com/sealerio/sealer/test/testhelper/settings"
+
 	"github.com/onsi/gomega"
 	"github.com/onsi/gomega/gbytes"
 	"github.com/onsi/gomega/gexec"
-
-	"github.com/alibaba/sealer/test/testhelper"
-	"github.com/alibaba/sealer/test/testhelper/settings"
 )
 
 func Login() {
@@ -31,7 +31,7 @@ func Login() {
 		settings.RegistryPasswd))
 
 	gomega.Expect(err).NotTo(gomega.HaveOccurred())
-	gomega.Eventually(sess).Should(gbytes.Say(fmt.Sprintf("login %s success", settings.RegistryURL)))
+	gomega.Eventually(sess).Should(gbytes.Say(fmt.Sprintln("Login Succeeded!")))
 	gomega.Eventually(sess, settings.MaxWaiteTime).Should(gexec.Exit(0))
 }
 

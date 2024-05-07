@@ -15,18 +15,19 @@
 package test
 
 import (
-	"io/ioutil"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"testing"
 
+	"github.com/sealerio/sealer/common"
+	"github.com/sealerio/sealer/test/testhelper"
+	"github.com/sealerio/sealer/test/testhelper/settings"
+	exe "github.com/sealerio/sealer/utils/exec"
+
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-
-	"github.com/alibaba/sealer/common"
-	"github.com/alibaba/sealer/test/testhelper"
-	"github.com/alibaba/sealer/test/testhelper/settings"
 )
 
 func TestSealerTests(t *testing.T) {
@@ -39,11 +40,15 @@ var _ = SynchronizedBeforeSuite(func() []byte {
 	Expect(err).NotTo(HaveOccurred(), output)
 	SetDefaultEventuallyTimeout(settings.DefaultWaiteTime)
 	settings.DefaultSealerBin = output
+
 	settings.DefaultTestEnvDir = testhelper.GetPwd()
-	if settings.CustomImageName == "" {
+	settings.TestImageName = settings.CustomImageName
+	settings.TestNydusImageName = settings.CustomNydusImageName
+	if settings.TestImageName == "" {
 		settings.TestImageName = settings.DefaultImage
-	} else {
-		settings.TestImageName = settings.CustomImageName
+	}
+	if settings.TestNydusImageName == "" {
+		settings.TestNydusImageName = settings.DefaultNydusImage
 	}
 	home := common.GetHomeDir()
 	logcfg := `{	"Console": {
@@ -51,7 +56,18 @@ var _ = SynchronizedBeforeSuite(func() []byte {
 		"color": true
 	},
 	"TimeFormat":"2006-01-02 15:04:05"}`
-	err = ioutil.WriteFile(filepath.Join(home, ".sealer.json"), []byte(logcfg), os.ModePerm)
+	err = os.WriteFile(filepath.Join(home, ".sealer.json"), []byte(logcfg), os.ModePerm)
+	Expect(err).NotTo(HaveOccurred())
+	// check the whether the sealer mount dir exist, if not, make the dir
+	_dir := settings.SealerImageRootPath
+	exist, err := testhelper.PathExists(_dir)
+	Expect(err).NotTo(HaveOccurred())
+	if !exist {
+		err := os.Mkdir(_dir, os.ModePerm)
+		Expect(err).NotTo(HaveOccurred())
+	}
+	cmd := fmt.Sprintf("rm -rf %s/*", common.DefaultSealerDataDir)
+	_, err = exe.RunSimpleCmd(cmd)
 	Expect(err).NotTo(HaveOccurred())
 	return nil
 }, func(data []byte) {

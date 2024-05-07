@@ -19,21 +19,24 @@ import (
 	"fmt"
 	"path/filepath"
 	"strconv"
-	"strings"
 	"time"
 
-	"github.com/alibaba/sealer/pkg/checker"
-	"github.com/alibaba/sealer/utils/ssh"
+	"github.com/sealerio/sealer/common"
+	"github.com/sealerio/sealer/pkg/checker"
+	k "github.com/sealerio/sealer/pkg/client/k8s"
+	"github.com/sealerio/sealer/pkg/infra"
+	"github.com/sealerio/sealer/test/testhelper"
+	"github.com/sealerio/sealer/test/testhelper/client/k8s"
+	"github.com/sealerio/sealer/test/testhelper/settings"
+	"github.com/sealerio/sealer/types/api/constants"
+	v1 "github.com/sealerio/sealer/types/api/v1"
+	"github.com/sealerio/sealer/utils"
+	"github.com/sealerio/sealer/utils/exec"
+	"github.com/sealerio/sealer/utils/os"
 
 	"github.com/onsi/gomega"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/yaml"
-
-	"github.com/alibaba/sealer/pkg/infra"
-	"github.com/alibaba/sealer/test/testhelper"
-	"github.com/alibaba/sealer/test/testhelper/settings"
-	v1 "github.com/alibaba/sealer/types/api/v1"
-	"github.com/alibaba/sealer/utils"
 )
 
 func getFixtures() string {
@@ -57,55 +60,70 @@ func DeleteClusterByFile(clusterFile string) {
 
 func WriteClusterFileToDisk(cluster *v1.Cluster, clusterFilePath string) {
 	testhelper.CheckNotNil(cluster)
-	err := testhelper.MarshalYamlToFile(clusterFilePath, cluster)
+	//convert clusterfilev1 to clusterfilev2
+	clusterv2 := utils.ConvertV1ClusterToV2Cluster(cluster)
+	clusterv2.Spec.Env = []string{"env=TestEnv"}
+	err := testhelper.MarshalYamlToFile(clusterFilePath, clusterv2)
 	testhelper.CheckErr(err)
 }
 
 func LoadClusterFileFromDisk(clusterFilePath string) *v1.Cluster {
-	clusters, err := utils.DecodeCluster(clusterFilePath)
+	cluster, err := utils.DecodeV1ClusterFromFile(clusterFilePath)
 	testhelper.CheckErr(err)
-	testhelper.CheckNotNil(clusters[0])
-	return &clusters[0]
+	testhelper.CheckNotNil(cluster)
+	return cluster
 }
 
 func LoadConfigFromDisk(clusterFilePath string) []v1.Config {
-	configs, err := utils.DecodeConfigs(clusterFilePath)
+	configs, err := utils.DecodeCRDFromFile(clusterFilePath, constants.ConfigKind)
 	testhelper.CheckErr(err)
 	testhelper.CheckNotNil(configs)
-	return configs
+	return configs.([]v1.Config)
 }
 
 func LoadPluginFromDisk(clusterFilePath string) []v1.Plugin {
-	plugins, err := utils.DecodePlugins(clusterFilePath)
+	plugins, err := utils.DecodeCRDFromFile(clusterFilePath, constants.PluginKind)
 	testhelper.CheckErr(err)
 	testhelper.CheckNotNil(plugins)
-	return plugins
+	return plugins.([]v1.Plugin)
 }
 
 func GenerateClusterfile(clusterfile string) {
-	filepath := GetRawConfigPluginFilePath()
+	fp := GetRawConfigPluginFilePath()
 	cluster := LoadClusterFileFromDisk(clusterfile)
-	cluster.Spec.Env = []string{"env=TestEnv"}
-	data, err := yaml.Marshal(cluster)
+	//convert clusterfilev1 to clusterfilev2
+	clusterv2 := utils.ConvertV1ClusterToV2Cluster(cluster)
+	clusterv2.Spec.Env = []string{"env=TestEnv"}
+	data, err := yaml.Marshal(clusterv2)
 	testhelper.CheckErr(err)
 	appendData := [][]byte{data}
-	plugins := LoadPluginFromDisk(filepath)
-	configs := LoadConfigFromDisk(filepath)
+	plugins := LoadPluginFromDisk(fp)
+	configs := LoadConfigFromDisk(fp)
 	for _, plugin := range plugins {
-		if plugin.Spec.Type == "LABEL" {
+		if plugin.Spec.Type == common.LABEL {
 			pluginData := "\n"
 			for _, ip := range cluster.Spec.Masters.IPList {
 				pluginData += fmt.Sprintf(" %s sealer-test=true \n", ip)
 			}
 			plugin.Spec.Data = pluginData
 		}
-		if plugin.Spec.Type == "HOSTNAME" {
+		if plugin.Spec.Type == common.HOSTNAME {
 			pluginData := "\n"
 			for i, ip := range cluster.Spec.Masters.IPList {
 				pluginData += fmt.Sprintf("%s master-%s\n", ip, strconv.Itoa(i))
 			}
 			for i, ip := range cluster.Spec.Nodes.IPList {
 				pluginData += fmt.Sprintf("%s node-%s\n", ip, strconv.Itoa(i))
+			}
+			plugin.Spec.Data = pluginData
+		}
+		if plugin.Spec.Type == common.TAINT {
+			pluginData := "\n"
+			for _, ip := range cluster.Spec.Masters.IPList {
+				pluginData += fmt.Sprintf("%s node-role.kubernetes.io/master:NoSchedule-\n", ip)
+			}
+			for _, ip := range cluster.Spec.Nodes.IPList {
+				pluginData += fmt.Sprintf("%s sealer-test=true:NoSchedule\n", ip)
 			}
 			plugin.Spec.Data = pluginData
 		}
@@ -118,12 +136,20 @@ func GenerateClusterfile(clusterfile string) {
 		testhelper.CheckErr(err)
 		appendData = append(appendData, []byte("---\n"), data)
 	}
-	err = utils.WriteFile(clusterfile, bytes.Join(appendData, []byte("")))
+	err = os.NewCommonWriter(clusterfile).WriteFile(bytes.Join(appendData, []byte("")))
 	testhelper.CheckErr(err)
 }
 
 func SealerDeleteCmd(clusterFile string) string {
 	return fmt.Sprintf("%s delete -f %s --force -d", settings.DefaultSealerBin, clusterFile)
+}
+
+func SealerDeleteAll() string {
+	return fmt.Sprintf("%s delete --all --force -d", settings.DefaultSealerBin)
+}
+
+func SealerDeleteNodeCmd(ip string) string {
+	return fmt.Sprintf("%s delete -n %s --force -d", settings.DefaultSealerBin, ip)
 }
 
 func SealerApplyCmd(clusterFile string) string {
@@ -157,43 +183,39 @@ func SealerJoinCmd(masters, nodes string) string {
 	if nodes != "" {
 		nodes = fmt.Sprintf("-n %s", nodes)
 	}
-	return fmt.Sprintf("%s join %s %s -c my-test-cluster -d", settings.DefaultSealerBin, masters, nodes)
+	return fmt.Sprintf("%s join %s %s -d", settings.DefaultSealerBin, masters, nodes)
 }
 
 func SealerJoin(masters, nodes string) {
 	testhelper.RunCmdAndCheckResult(SealerJoinCmd(masters, nodes), 0)
 }
 
-func CreateAliCloudInfraAndSave(cluster *v1.Cluster, clusterFile string) *v1.Cluster {
-	CreateAliCloudInfra(cluster)
+func CreateContainerInfraAndSave(cluster *v1.Cluster, clusterFile string) *v1.Cluster {
+	CreateContainerInfra(cluster)
 	//save used cluster file
 	cluster.Spec.Provider = settings.BAREMETAL
 	MarshalClusterToFile(clusterFile, cluster)
-	cluster.Spec.Provider = settings.AliCloud
+	cluster.Spec.Provider = settings.CONTAINER
 	return cluster
 }
 
 func ChangeMasterOrderAndSave(cluster *v1.Cluster, clusterFile string) *v1.Cluster {
 	cluster.Spec.Masters.Count = strconv.Itoa(3)
-	CreateAliCloudInfra(cluster)
+	CreateContainerInfra(cluster)
 	//change master order and save used cluster file
 	cluster.Spec.Masters.IPList[0], cluster.Spec.Masters.IPList[1] = cluster.Spec.Masters.IPList[1], cluster.Spec.Masters.IPList[0]
 	cluster.Spec.Provider = settings.BAREMETAL
 	MarshalClusterToFile(clusterFile, cluster)
-	cluster.Spec.Provider = settings.AliCloud
+	cluster.Spec.Provider = settings.CONTAINER
 	return cluster
 }
 
-func CreateAliCloudInfra(cluster *v1.Cluster) {
+func CreateContainerInfra(cluster *v1.Cluster) {
 	cluster.DeletionTimestamp = nil
-	gomega.Eventually(func() bool {
-		infraManager, err := infra.NewDefaultProvider(cluster)
-		if err != nil {
-			return false
-		}
-		err = infraManager.Apply()
-		return err == nil
-	}, settings.MaxWaiteTime).Should(gomega.BeTrue())
+	infraManager, err := infra.NewDefaultProvider(cluster)
+	testhelper.CheckErr(err)
+	err = infraManager.Apply()
+	testhelper.CheckErr(err)
 }
 
 func SendAndApplyCluster(sshClient *testhelper.SSHClient, clusterFile string) {
@@ -214,51 +236,45 @@ func SendAndRemoteExecCluster(sshClient *testhelper.SSHClient, clusterFile strin
 		err := sshClient.SSH.Copy(sshClient.RemoteHostIP, clusterFile, clusterFile)
 		return err == nil
 	}, settings.MaxWaiteTime).Should(gomega.BeTrue())
-	err := sshClient.SSH.CmdAsync(sshClient.RemoteHostIP, remoteCmd)
+	err := sshClient.SSH.CmdAsync(sshClient.RemoteHostIP, nil, remoteCmd)
 	testhelper.CheckErr(err)
 }
 
-func CleanUpAliCloudInfra(cluster *v1.Cluster) {
+func CleanUpContainerInfra(cluster *v1.Cluster) {
 	if cluster == nil {
 		return
 	}
-	if cluster.Spec.Provider != settings.AliCloud {
-		cluster.Spec.Provider = settings.AliCloud
+	if cluster.Spec.Provider != settings.CONTAINER {
+		cluster.Spec.Provider = settings.CONTAINER
 	}
-
-	gomega.Eventually(func() bool {
-		t := metav1.Now()
-		cluster.DeletionTimestamp = &t
-		infraManager, err := infra.NewDefaultProvider(cluster)
-		if err != nil {
-			return false
-		}
-		err = infraManager.Apply()
-		return err == nil
-	}, settings.MaxWaiteTime).Should(gomega.BeTrue())
+	t := metav1.Now()
+	cluster.DeletionTimestamp = &t
+	infraManager, err := infra.NewDefaultProvider(cluster)
+	testhelper.CheckErr(err)
+	err = infraManager.Apply()
+	testhelper.CheckErr(err)
 }
 
-// CheckNodeNumWithSSH check node mum of remote cluster;for bare metal apply
-func CheckNodeNumWithSSH(sshClient *testhelper.SSHClient, expectNum int) {
-	if sshClient == nil {
+// CheckNodeNumWithSSH check node num of remote cluster
+func CheckNodeNumWithSSH(client *k8s.Client, expectNum int) {
+	if client == nil {
 		return
 	}
-	cmd := "kubectl get nodes | wc -l"
-	result, err := sshClient.SSH.CmdToString(sshClient.RemoteHostIP, cmd, "")
+	nodes, err := client.ListNodes()
 	testhelper.CheckErr(err)
-	num, err := strconv.Atoi(strings.ReplaceAll(result, "\n", ""))
-	testhelper.CheckErr(err)
-	testhelper.CheckEqual(num, expectNum+1)
+	num := len(nodes.Items)
+	testhelper.CheckEqual(num, expectNum)
 }
 
-// CheckNodeNumLocally check node mum of remote cluster;for cloud apply
-func CheckNodeNumLocally(expectNum int) {
-	cmd := "sudo -E kubectl get nodes | wc -l"
-	result, err := utils.RunSimpleCmd(cmd)
+// CheckNodeNumLocally check node num of local cluster
+func CheckNodeNumLocally(client *k.Client, expectNum int) {
+	if client == nil {
+		return
+	}
+	nodes, err := client.ListNodes()
 	testhelper.CheckErr(err)
-	num, err := strconv.Atoi(strings.ReplaceAll(result, "\n", ""))
-	testhelper.CheckErr(err)
-	testhelper.CheckEqual(num, expectNum+1)
+	num := len(nodes.Items)
+	testhelper.CheckEqual(num, expectNum)
 }
 
 func WaitAllNodeRunning() {
@@ -269,15 +285,19 @@ func WaitAllNodeRunning() {
 	testhelper.CheckErr(err)
 }
 
-func WaitAllNodeRunningBySSH(s ssh.Interface, masterIP string) {
+func WaitAllNodeRunningBySSH(client *k8s.Client) {
 	time.Sleep(30 * time.Second)
 	err := utils.Retry(10, 5*time.Second, func() error {
-		result, err := s.CmdToString(masterIP, "kubectl get nodes", "")
+		flag, err := client.CheckAllNodeReady()
 		if err != nil {
 			return err
 		}
-		if strings.Contains(result, "NotReady") {
-			return fmt.Errorf("node not ready: \n %s", result)
+		if !flag {
+			err = client.OutputNotReadyPodInfo()
+			if err != nil {
+				return err
+			}
+			return fmt.Errorf("node not ready")
 		}
 		return nil
 	})
@@ -291,8 +311,8 @@ func MarshalClusterToFile(ClusterFile string, cluster *v1.Cluster) {
 }
 
 func CheckDockerAndSwapOff() {
-	_, err := utils.RunSimpleCmd("docker -v")
+	_, err := exec.RunSimpleCmd("docker -v")
 	testhelper.CheckErr(err)
-	_, err = utils.RunSimpleCmd("sudo swapoff -a")
+	_, err = exec.RunSimpleCmd("swapoff -a")
 	testhelper.CheckErr(err)
 }

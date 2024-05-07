@@ -40,7 +40,7 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 	watchtools "k8s.io/client-go/tools/watch"
 
-	"github.com/alibaba/sealer/pkg/debug/clusterinfo"
+	"github.com/sealerio/sealer/pkg/debug/clusterinfo"
 )
 
 const (
@@ -378,7 +378,7 @@ func WaitForContainer(ctx context.Context, client corev1client.PodsGetter, names
 		}
 
 		if status.State.Waiting != nil && status.State.Waiting.Reason == "ImagePullBackOff" {
-			return false, fmt.Errorf("failed to pull image")
+			return false, fmt.Errorf("failed to pull image: (%s: %s)", status.State.Waiting.Reason, status.State.Waiting.Message)
 		}
 
 		if status.State.Running != nil || status.State.Terminated != nil {

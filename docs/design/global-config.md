@@ -55,7 +55,7 @@ sealer run -e DashBoardPort=8443 mydashboard:latest -m xxx -n xxx -p xxx
 Or specify in Clusterfile:
 
 ```yaml
-apiVersion: sealer.aliyun.com/v1alpha1
+apiVersion: sealer.io/v1
 kind: Cluster
 metadata:
   name: my-cluster
@@ -68,7 +68,7 @@ spec:
 
 ## Using Env in shell plugin or other scripts
 
-[Using env in scripts](https://github.com/alibaba/sealer/blob/main/docs/design/clusterfile-v2.md#using-env-in-configs-and-script)
+[Using env in scripts](https://github.com/sealerio/sealer/blob/main/docs/design/clusterfile-v2.md#using-env-in-configs-and-script)
 
 ## Application config
 
@@ -77,7 +77,7 @@ Application config file:
 Clusterfile:
 
 ```
-apiVersion: sealer.aliyun.com/v1alpha1
+apiVersion: sealer.io/v1
 kind: Cluster
 metadata:
   name: my-cluster
@@ -85,7 +85,7 @@ spec:
   image: registry.cn-qingdao.aliyuncs.com/sealer-app/my-SAAS-all-inone:latest
   provider: BAREMETAL
 ---
-apiVersion: sealer.aliyun.com/v1alpha1
+apiVersion: sealer.io/v1
 kind: Config
 metadata:
   name: mysql-config
@@ -96,7 +96,7 @@ spec:
        mysql-passwd: xxx
 ...
 ---
-apiVersion: sealer.aliyun.com/v1alpha1
+apiVersion: sealer.io/v1
 kind: Config
 metadata:
   name: redis-config
@@ -122,6 +122,5 @@ CMD helm install mysql -f etc/redis-config.yaml
 ## Development Document
 
 Before mounting Rootfs, templates need to be rendered for the files in etc, charts, and manifest directories,
-and render environment variables and annotations to the [configuration file](
-https://github.com/alibaba/sealer/blob/main/pkg/filesystem/filesystem.go#L145).
+and render environment variables and annotations to the [configuration file].
 Generate the global.yaml file to the etc directory

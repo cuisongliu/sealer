@@ -15,88 +15,154 @@
 package config
 
 import (
-	"io/ioutil"
 	"testing"
 
-	"github.com/alibaba/sealer/common"
-
-	v1 "github.com/alibaba/sealer/types/api/v1"
+	"github.com/stretchr/testify/assert"
 )
 
-func TestDumper_Dump(t *testing.T) {
-	type fields struct {
-		configs     []v1.Config
-		clusterName string
-	}
+func Test_getMergeConfig(t *testing.T) {
+	testSrcData := `apiVersion: v1
+data:
+  key1: myConfigMap1
+kind: ConfigMap
+metadata:
+  name: myConfigMap1
+---
+apiVersion: v1
+data:
+  key2: myConfigMap2
+kind: ConfigMap
+metadata:
+  name: myConfigMap2
+---
+apiVersion: v1
+data:
+  key3: myConfigMap3
+kind: ConfigMap
+metadata:
+  name: myConfigMap3
+`
+
+	wantedData := `apiVersion: v1
+data:
+    key1: myConfigMap1
+    test-key: test-key
+kind: ConfigMap
+metadata:
+    name: myConfigMap1
+    namespace: test-namespace
+---
+apiVersion: v1
+data:
+    key2: myConfigMap2
+    test-key: test-key
+kind: ConfigMap
+metadata:
+    name: myConfigMap2
+    namespace: test-namespace
+---
+apiVersion: v1
+data:
+    key3: myConfigMap3
+    test-key: test-key
+kind: ConfigMap
+metadata:
+    name: myConfigMap3
+    namespace: test-namespace
+`
+
+	configmapData := `data:
+  test-key: test-key
+metadata:
+  namespace: test-namespace
+`
+
 	type args struct {
-		clusterfile string
+		src        []byte
+		configData []byte
 	}
 	tests := []struct {
-		name    string
-		fields  fields
-		args    args
-		wantErr bool
+		name string
+		args args
 	}{
 		{
-			"test dump clusterfile configs",
-			fields{
-				configs:     nil,
-				clusterName: "my-cluster",
+			name: "add namespace to each configmap",
+			args: args{
+				configData: []byte(configmapData),
+				src:        []byte(testSrcData),
 			},
-			args{clusterfile: "test_clusterfile.yaml"},
-			false,
 		},
 	}
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			c := &Dumper{
-				Configs:     tt.fields.configs,
-				ClusterName: tt.fields.clusterName,
+			got, err := getMergeConfigData(tt.args.src, tt.args.configData)
+			if err != nil {
+				assert.Errorf(t, err, "failed to MergeConfigData")
+				return
 			}
-			if err := c.Dump(tt.args.clusterfile); (err != nil) != tt.wantErr {
-				t.Errorf("Dump() error = %v, wantErr %v", err, tt.wantErr)
-			}
+			assert.Equal(t, wantedData, string(got))
 		})
 	}
 }
 
-func Test_getMergeConfig(t *testing.T) {
+func Test_convertSecretYaml(t *testing.T) {
+	configData := `global: e2FiYzogeHh4fQo=
+components: e215c3FsOntjcHU6e3JlcXVlc3Q6IDEwMDBtfX19Cg==`
+
+	testFileData := `apiVersion: v1
+data:
+kind: Secret
+metadata:
+  name: gu-demo-configuration
+  namespace: default
+type: Opaque`
+
+	secretFileExistWanted := `apiVersion: v1
+data:
+  components: ZTIxNWMzRnNPbnRqY0hVNmUzSmxjWFZsYzNRNklERXdNREJ0ZlgxOUNnPT0=
+  global: ZTJGaVl6b2dlSGg0ZlFvPQ==
+kind: Secret
+metadata:
+  creationTimestamp: null
+  name: gu-demo-configuration
+  namespace: default
+type: Opaque
+`
+
+	secretFileNotExistWanted := `data:
+  components: ZTIxNWMzRnNPbnRqY0hVNmUzSmxjWFZsYzNRNklERXdNREJ0ZlgxOUNnPT0=
+  global: ZTJGaVl6b2dlSGg0ZlFvPQ==
+metadata:
+  creationTimestamp: null
+`
+
 	type args struct {
-		path string
-		data []byte
+		src        []byte
+		configData []byte
+		wanted     []byte
 	}
 	tests := []struct {
-		name    string
-		args    args
-		want    []byte
-		wantErr bool
+		name string
+		args args
 	}{
-		// TODO: Add test cases.
 		{
-			name: "test",
-			args: args{
-				data: []byte("spec:\n  image: kubernetes:v1.19.8"),
-				path: "test_clusterfile.yaml",
-			},
-		}, {
-			name: "test",
-			args: args{
-				data: []byte("spec:\n  template:\n    metadata:\n      labels:\n        name: tigera-operatorssssss"),
-				path: "tigera-operator.yaml",
-			},
+			"test secret convert with src",
+			args{
+				src: []byte(testFileData), configData: []byte(configData), wanted: []byte(secretFileExistWanted)},
 		},
+		{
+			"test secret convert without src",
+			args{src: nil, configData: []byte(configData), wanted: []byte(secretFileNotExistWanted)}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := getMergeConfigData(tt.args.path, tt.args.data)
+			got, err := convertSecretYaml(tt.args.src, tt.args.configData)
 			if err != nil {
-				t.Error(err)
+				t.Errorf("convertSecretYaml() error = %v", err)
 				return
 			}
-			err = ioutil.WriteFile("test_"+tt.args.path, got, common.FileMode0644)
-			if err != nil {
-				t.Error(err)
-			}
+			assert.Equal(t, tt.args.wanted, got)
 		})
 	}
 }

@@ -15,15 +15,18 @@
 package v1
 
 import (
+	"net"
+
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 type SSH struct {
-	User     string `json:"user,omitempty"`
-	Passwd   string `json:"passwd,omitempty"`
-	Pk       string `json:"pk,omitempty"`
-	PkPasswd string `json:"pkPasswd,omitempty"`
-	Port     string `json:"port,omitempty"`
+	Encrypted bool   `json:"encrypted,omitempty"`
+	User      string `json:"user,omitempty"`
+	Passwd    string `json:"passwd,omitempty"`
+	Pk        string `json:"pk,omitempty"`
+	PkPasswd  string `json:"pkPasswd,omitempty"`
+	Port      string `json:"port,omitempty"`
 }
 
 type Network struct {
@@ -37,7 +40,7 @@ type Hosts struct {
 	Count      string   `json:"count,omitempty"`
 	SystemDisk string   `json:"systemDisk,omitempty"`
 	DataDisks  []string `json:"dataDisks,omitempty"`
-	IPList     []string `json:"ipList,omitempty"`
+	IPList     []net.IP `json:"ipList,omitempty"`
 }
 
 // EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!

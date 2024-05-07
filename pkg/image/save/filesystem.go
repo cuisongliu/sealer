@@ -20,16 +20,14 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
 	"path"
 	"time"
 
-	"github.com/alibaba/sealer/logger"
-
 	storagedriver "github.com/distribution/distribution/v3/registry/storage/driver"
 	"github.com/distribution/distribution/v3/registry/storage/driver/base"
 	"github.com/distribution/distribution/v3/registry/storage/driver/factory"
+	"github.com/sirupsen/logrus"
 )
 
 const (
@@ -37,7 +35,7 @@ const (
 	defaultRootDirectory = "/var/lib/registry"
 	defaultMaxThreads    = uint64(100)
 
-	// minThreads is the minimum value for the maxthreads configuration
+	// minThreads is the minimum value for the maxThreads configuration
 	// parameter. If the driver's parameters are less than this we set
 	// the parameters to minThreads
 	minThreads = uint64(25)
@@ -69,8 +67,8 @@ type baseEmbed struct {
 	base.Base
 }
 
-// Driver is a storagedriver.StorageDriver implementation backed by a local
-// filesystem. All provided paths will be subpaths of the RootDirectory.
+// Driver is a storage driver.StorageDriver implementation backed by a local
+// filesystem. All provided paths will be sub paths of the RootDirectory.
 type Driver struct {
 	baseEmbed
 }
@@ -137,9 +135,14 @@ func (d *driver) GetContent(ctx context.Context, path string) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer rc.Close()
+	defer func(rc io.ReadCloser) {
+		err := rc.Close()
+		if err != nil {
+			logrus.Warnf("failed to close reader")
+		}
+	}(rc)
 
-	p, err := ioutil.ReadAll(rc)
+	p, err := io.ReadAll(rc)
 	if err != nil {
 		return nil, err
 	}
@@ -155,7 +158,7 @@ func (d *driver) PutContent(ctx context.Context, subPath string, contents []byte
 	}
 	defer func() {
 		if err := writer.Close(); err != nil {
-			logger.Fatal("failed to close file")
+			logrus.Fatalf("failed to close file: %v", err)
 		}
 	}()
 	_, err = io.Copy(writer, bytes.NewReader(contents))
@@ -250,7 +253,7 @@ func (d *driver) Stat(ctx context.Context, subPath string) (storagedriver.FileIn
 func (d *driver) List(ctx context.Context, subPath string) ([]string, error) {
 	fullPath := d.fullPath(subPath)
 	// #nosec
-	dir, err := os.OpenFile(fullPath, os.O_WRONLY|os.O_CREATE, 0600)
+	dir, err := os.Open(fullPath)
 	if err != nil {
 		if os.IsNotExist(err) {
 			return nil, storagedriver.PathNotFoundError{Path: subPath}
@@ -260,7 +263,7 @@ func (d *driver) List(ctx context.Context, subPath string) ([]string, error) {
 
 	defer func() {
 		if err := dir.Close(); err != nil {
-			logger.Fatal("failed to close file")
+			logrus.Fatalf("failed to close file: %v", err)
 		}
 	}()
 	fileNames, err := dir.Readdirnames(0)

@@ -15,33 +15,22 @@
 package test
 
 import (
-	"strconv"
 	"strings"
 
-	. "github.com/onsi/ginkgo"
+	"github.com/sealerio/sealer/test/suites/apply"
+	"github.com/sealerio/sealer/test/testhelper"
+	"github.com/sealerio/sealer/test/testhelper/client/k8s"
+	"github.com/sealerio/sealer/test/testhelper/settings"
+	utilsnet "github.com/sealerio/sealer/utils/net"
 
-	"github.com/alibaba/sealer/test/suites/apply"
-	"github.com/alibaba/sealer/test/testhelper"
-	"github.com/alibaba/sealer/test/testhelper/settings"
+	. "github.com/onsi/ginkgo"
 )
 
 var _ = Describe("sealer run", func() {
-	Context("run on ali cloud", func() {
-		AfterEach(func() {
-			apply.DeleteClusterByFile(settings.GetClusterWorkClusterfile(settings.ClusterNameForRun))
-		})
 
-		It("exec sealer run", func() {
-			master := strconv.Itoa(1)
-			node := strconv.Itoa(1)
-			apply.SealerRun(master, node, "", settings.AliCloud)
-			apply.CheckNodeNumLocally(2)
-		})
-
-	})
-
-	Context("run on bareMetal", func() {
+	Context("run on container", func() {
 		var tempFile string
+		apply.CheckDockerAndSwapOff()
 		BeforeEach(func() {
 			tempFile = testhelper.CreateTempFile()
 		})
@@ -50,13 +39,14 @@ var _ = Describe("sealer run", func() {
 			testhelper.RemoveTempFile(tempFile)
 		})
 
-		It("bareMetal run", func() {
+		It("container run", func() {
 			rawCluster := apply.LoadClusterFileFromDisk(apply.GetRawClusterFilePath())
+			rawCluster.Spec.Image = settings.TestImageName
 			By("start to prepare infra")
-			usedCluster := apply.CreateAliCloudInfraAndSave(rawCluster, tempFile)
+			usedCluster := apply.CreateContainerInfraAndSave(rawCluster, tempFile)
 			//defer to delete cluster
 			defer func() {
-				apply.CleanUpAliCloudInfra(usedCluster)
+				apply.CleanUpContainerInfra(usedCluster)
 			}()
 			sshClient := testhelper.NewSSHClientByCluster(usedCluster)
 			testhelper.CheckFuncBeTrue(func() bool {
@@ -64,13 +54,19 @@ var _ = Describe("sealer run", func() {
 				return err == nil
 			}, settings.MaxWaiteTime)
 
-			By("start to init cluster", func() {
-				masters := strings.Join(usedCluster.Spec.Masters.IPList, ",")
-				nodes := strings.Join(usedCluster.Spec.Nodes.IPList, ",")
-				apply.SendAndRunCluster(sshClient, tempFile, masters, nodes, usedCluster.Spec.SSH.Passwd)
-				apply.CheckNodeNumWithSSH(sshClient, 2)
-			})
+			By("start to init cluster")
+			masterIPStrs := utilsnet.IPsToIPStrs(usedCluster.Spec.Masters.IPList)
+			masters := strings.Join(masterIPStrs, ",")
+			nodesIPStrs := utilsnet.IPsToIPStrs(usedCluster.Spec.Nodes.IPList)
+			nodes := strings.Join(nodesIPStrs, ",")
+			apply.SendAndRunCluster(sshClient, tempFile, masters, nodes, usedCluster.Spec.SSH.Passwd)
+			client, err := k8s.NewK8sClient(sshClient)
+			testhelper.CheckErr(err)
+			apply.CheckNodeNumWithSSH(client, 2)
 
+			By("Wait for the cluster to be ready", func() {
+				apply.WaitAllNodeRunningBySSH(client)
+			})
 		})
 	})
 })

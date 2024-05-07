@@ -20,11 +20,11 @@ import (
 	"io"
 	"os/exec"
 
+	"github.com/sealerio/sealer/test/testhelper/settings"
+
 	"github.com/onsi/ginkgo"
 	"github.com/onsi/gomega"
 	"github.com/onsi/gomega/gexec"
-
-	"github.com/alibaba/sealer/test/testhelper/settings"
 )
 
 // Start sealer cmd and return *gexec.Session
@@ -33,7 +33,7 @@ func Start(cmdLine string) (*gexec.Session, error) {
 		return nil, errors.New("failed to start cmd, line is empty")
 	}
 	cmdLine = fmt.Sprintf("sudo -E %s", cmdLine)
-	execCmd := exec.Command("/bin/sh", "-c", cmdLine) // #nosec
+	execCmd := exec.Command("/bin/bash", "-c", cmdLine) // #nosec
 	_, err := io.WriteString(ginkgo.GinkgoWriter, fmt.Sprintf("%s\n", cmdLine))
 	if err != nil {
 		return nil, err

@@ -15,28 +15,35 @@
 package ssh
 
 import (
+	"errors"
 	"fmt"
-	"io/ioutil"
 	"net"
 	"os"
-	"path"
 	"path/filepath"
-	"strconv"
+	"regexp"
 	"strings"
+	"sync"
 	"time"
 
+	"github.com/sealerio/sealer/common"
+
+	"github.com/sealerio/sealer/utils/hash"
+
+	"github.com/pkg/sftp"
 	"golang.org/x/crypto/ssh"
-
-	"github.com/alibaba/sealer/logger"
 )
-
-/**
-  SSH connection operation
-*/
 
 const DefaultSSHPort = "22"
 
-func (s *SSH) connect(host string) (*ssh.Client, error) {
+func (s *SSH) connect(host net.IP) (*ssh.Client, error) {
+	if s.Encrypted {
+		passwd, err := hash.AesDecrypt([]byte(s.Password))
+		if err != nil {
+			return nil, err
+		}
+		s.Password = passwd
+		s.Encrypted = false
+	}
 	auth := s.sshAuthMethod(s.Password, s.PkFile, s.PkPassword)
 	config := ssh.Config{
 		Ciphers: []string{"aes128-ctr", "aes192-ctr", "aes256-ctr", "aes128-gcm@openssh.com", "arcfour256", "arcfour128", "aes128-cbc", "3des-cbc", "aes192-cbc", "aes256-cbc"},
@@ -57,10 +64,10 @@ func (s *SSH) connect(host string) (*ssh.Client, error) {
 	if s.Port == "" {
 		s.Port = DefaultSSHPort
 	}
-	return ssh.Dial("tcp", fmt.Sprintf("%s:%s", host, s.Port), clientConfig)
+	return ssh.Dial("tcp", net.JoinHostPort(host.String(), s.Port), clientConfig)
 }
 
-func (s *SSH) Connect(host string) (*ssh.Client, *ssh.Session, error) {
+func (s *SSH) Connect(host net.IP) (*ssh.Client, *ssh.Session, error) {
 	client, err := s.connect(host)
 	if err != nil {
 		return nil, nil, err
@@ -100,9 +107,9 @@ func (s *SSH) sshAuthMethod(password, pkFile, pkPasswd string) (auth []ssh.AuthM
 	return auth
 }
 
-//Authentication with a private key,private key has password and no password to verify in this
+// Authentication with a private key,private key has password and no password to verify in this
 func (s *SSH) sshPrivateKeyMethod(pkFile, pkPassword string) (am ssh.AuthMethod, err error) {
-	pkData, err := ioutil.ReadFile(filepath.Clean(pkFile))
+	pkData, err := os.ReadFile(filepath.Clean(pkFile))
 	if err != nil {
 		return nil, err
 	}
@@ -123,41 +130,97 @@ func (s *SSH) sshPrivateKeyMethod(pkFile, pkPassword string) (am ssh.AuthMethod,
 	return ssh.PublicKeys(pk), nil
 }
 
-func fileExist(path string) bool {
-	_, err := os.Stat(path)
-	return err == nil || os.IsExist(err)
-}
 func (s *SSH) sshPasswordMethod(password string) ssh.AuthMethod {
 	return ssh.Password(password)
 }
 
-//RemoteFileExist is
-func (s *SSH) IsFileExist(host, remoteFilePath string) bool {
-	// if remote file is
-	// ls -l | grep aa | wc -l
-	remoteFileName := path.Base(remoteFilePath) // aa
-	remoteFileDirName := path.Dir(remoteFilePath)
-	//it's bug: if file is aa.bak, `ls -l | grep aa | wc -l` is 1 ,should use `ll aa 2>/dev/null |wc -l`
-	//remoteFileCommand := fmt.Sprintf("ls -l %s| grep %s | grep -v grep |wc -l", remoteFileDirName, remoteFileName)
-	remoteFileCommand := fmt.Sprintf("ls -l %s/%s 2>/dev/null |wc -l", remoteFileDirName, remoteFileName)
+type Client struct {
+	SSHClient  *ssh.Client
+	SftpClient *sftp.Client
+}
 
-	data, err := s.CmdToString(host, remoteFileCommand, " ")
-	defer func() {
-		if r := recover(); r != nil {
-			logger.Error("[ssh][%s]remoteFileCommand err:%s", host, err)
-		}
-	}()
-	if err != nil {
-		panic(1)
+var sshClientMap = map[string]Client{}
+
+var getSSHClientLock = sync.Mutex{}
+
+func (s *SSH) sftpConnect(host net.IP) (*sftp.Client, error) {
+	getSSHClientLock.Lock()
+	defer getSSHClientLock.Unlock()
+
+	if ret, ok := sshClientMap[host.String()]; ok {
+		return ret.SftpClient, nil
 	}
-	count, err := strconv.Atoi(strings.TrimSpace(data))
-	defer func() {
-		if r := recover(); r != nil {
-			logger.Error("[ssh][%s]RemoteFileExist:%s", host, err)
-		}
-	}()
+
+	var (
+		sshClient  *ssh.Client
+		sftpClient *sftp.Client
+		err        error
+	)
+
+	sshClient, err = s.connect(host)
 	if err != nil {
-		panic(1)
+		return nil, err
 	}
-	return count != 0
+
+	// create sftp client
+	if s.User != common.ROOT {
+		sftpClient, err = s.NewSudoSftpClient(sshClient)
+	} else {
+		sftpClient, err = sftp.NewClient(sshClient)
+	}
+
+	sshClientMap[host.String()] = Client{
+		SSHClient:  sshClient,
+		SftpClient: sftpClient,
+	}
+
+	return sftpClient, err
+}
+
+func (s *SSH) NewSudoSftpClient(conn *ssh.Client, opts ...sftp.ClientOption) (*sftp.Client, error) {
+	var (
+		cmd            string
+		err            error
+		ses, ses2      *ssh.Session
+		buff           []byte
+		sftpServerPath string
+	)
+
+	ses2, err = conn.NewSession()
+	if err != nil {
+		return nil, err
+	}
+	defer ses2.Close()
+
+	cmd = `sudo grep -oP "Subsystem\s+sftp\s+\K.*" /etc/ssh/sshd_config`
+	buff, err = ses2.Output(cmd)
+	if err != nil {
+		return nil, fmt.Errorf("failed to execute cmd(%s): %v", cmd, err)
+	}
+
+	ses, err = conn.NewSession()
+	if err != nil {
+		return nil, err
+	}
+
+	sftpServerPath = strings.ReplaceAll(string(buff), "\r", "")
+	if match, _ := regexp.MatchString(`^sudo `, sftpServerPath); !match {
+		sftpServerPath = SUDO + sftpServerPath
+	}
+
+	ok, err := ses.SendRequest("exec", true, ssh.Marshal(struct{ Command string }{sftpServerPath}))
+	if err == nil && !ok {
+		return nil, errors.New("ssh: failed to exec request")
+	}
+
+	pw, err := ses.StdinPipe()
+	if err != nil {
+		return nil, err
+	}
+	pr, err := ses.StdoutPipe()
+	if err != nil {
+		return nil, err
+	}
+
+	return sftp.NewClientPipe(pr, pw, opts...)
 }

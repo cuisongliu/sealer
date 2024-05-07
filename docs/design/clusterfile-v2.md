@@ -16,7 +16,7 @@ Clusterfile v1 not match some requirement.
 * Delete all kubeadm config
 
 ```yaml
-apiVersion: sealer.cloud/v2
+apiVersion: sealer.io/v2
 kind: Cluster
 metadata:
   name: my-cluster
@@ -31,7 +31,7 @@ spec:
     pk: xxx
     pkPasswd: xxx
     user: root
-    port: 2222
+    port: "2222"
   hosts:
     - ips: [ 192.168.0.2 ]
       roles: [ master ] # add role field to specify the node role
@@ -40,7 +40,7 @@ spec:
       ssh: # rewrite ssh config if some node has different passwd...
         user: xxx
         passwd: xxx
-        port: 2222
+        port: "2222"
     - ips: [ 192.168.0.3 ]
       roles: [ node,db ]
 ```
@@ -52,7 +52,7 @@ spec:
 3 masters and a node, It's so clearly and simple, cool
 
 ```yaml
-apiVersion: sealer.cloud/v2
+apiVersion: sealer.io/v2
 kind: Cluster
 metadata:
   name: default-kubernetes-cluster
@@ -70,7 +70,7 @@ spec:
 ### Overwrite ssh config (for example password,and port)
 
 ```yaml
-apiVersion: sealer.cloud/v2
+apiVersion: sealer.io/v2
 kind: Cluster
 metadata:
   name: default-kubernetes-cluster
@@ -78,13 +78,13 @@ spec:
   image: kubernetes:v1.19.8
   ssh:
     passwd: xxx
-    port: 2222
+    port: "2222"
   hosts:
     - ips: [ 192.168.0.2 ]
       roles: [ master ]
       ssh:
         passwd: yyy
-        port: 22
+        port: "22"
     - ips: [ 192.168.0.3,192.168.0.4 ]
       roles: [ master ]
     - ips: [ 192.168.0.5 ]
@@ -93,11 +93,11 @@ spec:
 
 ### How to define your own kubeadm config
 
-The better way is to add kubeadm config directly into Clusterfile, of course every CloudImage has it default config:
+The better way is to add kubeadm config directly into Clusterfile, of course every ClusterImage has it default config:
 You can only define part of those configs, sealer will merge then into default config.
 
 ```yaml
-apiVersion: kubeadm.k8s.io/v1beta2
+apiVersion: kubeadm.k8s.io/v1beta3
 kind: InitConfiguration
 localAPIEndpoint:
   # advertiseAddress: 192.168.2.110
@@ -106,11 +106,11 @@ nodeRegistration:
   criSocket: /var/run/dockershim.sock
 
 ---
-apiVersion: kubeadm.k8s.io/v1beta2
+apiVersion: kubeadm.k8s.io/v1beta3
 kind: ClusterConfiguration
 kubernetesVersion: v1.19.8
 controlPlaneEndpoint: "apiserver.cluster.local:6443"
-imageRepository: sea.hub:5000/library
+imageRepository: sea.hub:5000
 networking:
   # dnsDomain: cluster.local
   podSubnet: 100.64.0.0/10
@@ -250,7 +250,7 @@ streamingConnectionIdleTimeout: 4h0m0s
 syncFrequency: 1m0s
 volumeStatsAggPeriod: 1m0s
 ---
-apiVersion: kubeadm.k8s.io/v1beta2
+apiVersion: kubeadm.k8s.io/v1beta3
 kind: JoinConfiguration
 caCertPath: /etc/kubernetes/pki/ca.crt
 discovery:
@@ -268,7 +268,7 @@ controlPlane:
 If you don't want to care about so much Kubeadm configs, you can use `KubeConfig` object to overwrite(json patch merge) some fields.
 
 ```yaml
-apiVersion: sealer.cloud/v2
+apiVersion: sealer.io/v2
 kind: KubeadmConfig
 metadata:
   name: default-kubernetes-config
@@ -280,7 +280,7 @@ spec:
     criSocket: /var/run/dockershim.sock
   kubernetesVersion: v1.19.8
   controlPlaneEndpoint: "apiserver.cluster.local:6443"
-  imageRepository: sea.hub:5000/library
+  imageRepository: sea.hub:5000
   networking:
     podSubnet: 100.64.0.0/10
     serviceSubnet: 10.96.0.0/22
@@ -293,10 +293,10 @@ spec:
 
 ### Using ENV in configs and script
 
-Using ENV in configs or yaml files [check this](https://github.com/alibaba/sealer/blob/main/docs/design/global-config.md#global-configuration)
+Using ENV in configs or yaml files [check this](https://github.com/sealerio/sealer/blob/main/docs/design/global-config.md#global-configuration)
 
 ```yaml
-apiVersion: sealer.cloud/v2
+apiVersion: sealer.io/v2
 kind: Cluster
 metadata:
   name: my-cluster
@@ -329,14 +329,14 @@ If you're using public cloud, you needn't to config the ip field in Cluster Obje
 apply resource from public cloud, then render the ip list to Cluster Object.
 
 ```yaml
-apiVersion: sealer.cloud/v2
+apiVersion: sealer.io/v2
 kind: Cluster
 metadata:
   name: default-kubernetes-cluster
 spec:
   image: kubernetes:v1.19.8
 ---
-apiVersion: sealer.cloud/v2
+apiVersion: sealer.io/v2
 kind: Infra
 metadata:
   name: alicloud
@@ -344,7 +344,7 @@ spec:
   provider: ALI_CLOUD
   ssh:
     passwd: xxx
-    port: 2222
+    port: "2222"
   hosts:
     - count: 3
       role: [ master ]
@@ -363,7 +363,7 @@ spec:
 After `sealer apply -f Clusterfile`, The cluster object will update:
 
 ```yaml
-apiVersion: sealer.cloud/v2
+apiVersion: sealer.io/v2
 kind: Cluster
 metadata:
   name: default-kubernetes-cluster
@@ -371,7 +371,7 @@ spec:
   image: kubernetes:v1.19.8
   ssh:
     passwd: xxx
-    port: 2222
+    port: "2222"
   hosts:
     - ips: [ 192.168.0.3 ]
       roles: [ master ]
@@ -380,4 +380,4 @@ spec:
 
 ### Env render support
 
-[Env render](https://github.com/alibaba/sealer/blob/main/docs/design/global-config.md#global-configuration)
+[Env render](https://github.com/sealerio/sealer/blob/main/docs/design/global-config.md#global-configuration)

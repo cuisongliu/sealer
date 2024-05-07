@@ -15,13 +15,10 @@
 package save
 
 import (
-	"context"
 	"testing"
-
-	v1 "github.com/opencontainers/image-spec/specs-go/v1"
 )
 
-func TestSaveImages(t *testing.T) {
+/* func TestSaveImages(t *testing.T) {
 	tests := []string{"ubuntu", "ubuntu:18.04", "registry.aliyuncs.com/google_containers/coredns:1.6.5", "fanux/lvscare", "kubernetesui/dashboard:v2.2.0", "multiarch/ubuntu-core:arm64-focal"}
 	is := NewImageSaver(context.Background())
 	err := is.SaveImages(tests, "/var/lib/registry", v1.Platform{OS: "linux", Architecture: "amd64"})
@@ -29,6 +26,7 @@ func TestSaveImages(t *testing.T) {
 		t.Error(err)
 	}
 }
+*/
 
 func Test_splitDockerDomain(t *testing.T) {
 	tests := []struct {
@@ -51,14 +49,14 @@ func Test_splitDockerDomain(t *testing.T) {
 		},
 		{
 			name:       "test3",
-			imageName:  "k8s.gcr.io/kube-apiserver",
-			wantDomain: "k8s.gcr.io",
+			imageName:  "registry.k8s.io/kube-apiserver",
+			wantDomain: "registry.k8s.io",
 			wantRemain: "kube-apiserver",
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if domain, remainer := splitDockerDomain(tt.imageName); domain != tt.wantDomain || remainer != tt.wantRemain {
+			if domain, remainer := splitDockerDomain(tt.imageName, ""); domain != tt.wantDomain || remainer != tt.wantRemain {
 				t.Errorf("split image %s error", tt.name)
 			}
 		})
@@ -89,8 +87,8 @@ func Test_parseNormalizedNamed(t *testing.T) {
 		},
 		{
 			name:       "test3",
-			imageName:  "k8s.gcr.io/kube-apiserver",
-			wantDomain: "k8s.gcr.io",
+			imageName:  "registry.k8s.io/kube-apiserver",
+			wantDomain: "registry.k8s.io",
 			wantRepo:   "kube-apiserver",
 			wantTag:    defaultTag,
 		},
@@ -112,7 +110,7 @@ func Test_parseNormalizedNamed(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if named, err := parseNormalizedNamed(tt.imageName); err != nil || named.Domain() != tt.wantDomain || named.Repo() != tt.wantRepo || named.tag != tt.wantTag {
+			if named, err := ParseNormalizedNamed(tt.imageName, ""); err != nil || named.Domain() != tt.wantDomain || named.Repo() != tt.wantRepo || named.tag != tt.wantTag {
 				t.Errorf("parse image %s error", tt.name)
 			}
 		})

@@ -22,92 +22,101 @@ import (
 
 const (
 	MASTER = "master"
-	NODE   = "node"
+	// TODO，警惕，不能通过此标志来获取worker，因为master也可以role=node
+	NODE = "node"
 )
 
 const (
-	FROMCOMMAND        = "FROM"
-	COPYCOMMAND        = "COPY"
-	RUNCOMMAND         = "RUN"
-	CMDCOMMAND         = "CMD"
-	ENVCOMMAND         = "ENV"
-	BaseImageLayerType = "BASE"
-	RootfsLayerValue   = "rootfs cache"
+	Docker     = "docker"
+	Containerd = "containerd"
 )
 
 const (
-	DefaultWorkDir                = "/tmp/%s/workdir"
-	EtcDir                        = "etc"
-	DefaultTmpDir                 = "/var/lib/sealer/tmp"
-	DefaultLiteBuildUpper         = "/var/lib/sealer/tmp/lite_build_upper"
-	DefaultLogDir                 = "/var/lib/sealer/log"
-	DefaultClusterFileName        = "Clusterfile"
-	DefaultClusterRootfsDir       = "/var/lib/sealer/data"
-	DefaultClusterInitBashFile    = "/var/lib/sealer/data/%s/scripts/init.sh"
-	DefaultClusterClearBashFile   = "/var/lib/sealer/data/%s/rootfs/scripts/clean.sh"
-	TarGzSuffix                   = ".tar.gz"
-	YamlSuffix                    = ".yaml"
-	ImageAnnotationForClusterfile = "sea.aliyun.com/ClusterFile"
-	RawClusterfile                = "/var/lib/sealer/Clusterfile"
-	TmpClusterfile                = "/tmp/Clusterfile"
-	DefaultRegistryHostName       = "registry.cn-qingdao.aliyuncs.com"
-	DefaultRegistryAuthDir        = "/root/.docker/config.json"
-	KubeAdminConf                 = "/etc/kubernetes/admin.conf"
-	DefaultKubeDir                = "/root/.kube"
-	KubectlPath                   = "/usr/bin/kubectl"
-	EtcHosts                      = "/etc/hosts"
-	ClusterWorkDir                = "/root/.sealer/%s"
-	RemoteSealerPath              = "/usr/local/bin/sealer"
-	DefaultCloudProvider          = AliCloud
-	ClusterfileName               = "ClusterfileName"
-	CacheID                       = "cacheID"
-	RenderChartsDir               = "charts"
-	RenderManifestsDir            = "manifests"
+	K0s string = "k0s"
+	K3s string = "k3s"
+	K8s string = "kubernetes"
+)
+
+// Default dir and file path
+const (
+	DefaultLogDir            = "/var/lib/sealer/log"
+	DefaultSealerDataDir     = "/var/lib/sealer/data"
+	KubeAdminConf            = "/etc/kubernetes/admin.conf"
+	ClusterfileName          = "ClusterfileName"
+	KubeLvsCareStaticPodName = "kube-lvscare"
+	RegLvsCareStaticPodName  = "reg-lvscare"
+	StaticPodDir             = "/etc/kubernetes/manifests"
+	LvsCareRepoAndTag        = "sealerio/lvscare:v1.1.3-beta.8"
+)
+
+// Envs
+const (
+	EnvHostIP                 = "HostIP"
+	EnvHostIPFamily           = "HostIPFamily"
+	EnvContainerRuntime       = "ContainerRuntime"
+	EnvIPv6DualStack          = "IPv6DualStack"
+	EnvRegistryDomain         = "RegistryDomain"
+	EnvRegistryPort           = "RegistryPort"
+	EnvRegistryURL            = "RegistryURL"
+	EnvLocalRegistryDomain    = "LocalRegistryDomain"
+	EnvLocalRegistryPort      = "LocalRegistryPort"
+	EnvLocalRegistryURL       = "LocalRegistryURL"
+	EnvExternalRegistryDomain = "ExternalRegistryDomain"
+	EnvExternalRegistryPort   = "ExternalRegistryPort"
+	EnvExternalRegistryURL    = "ExternalRegistryURL"
+	EnvCertSANs               = "CertSANs"
+	EnvIPvsVIPForIPv4         = "IPvsVIPv4"
+	EnvIPvsVIPForIPv6         = "IPvsVIPv6"
+	EnvSvcCIDR                = "SvcCIDR"
+	EnvPodCIDR                = "PodCIDR"
+	EnvDNSSvcIP               = "DNSSvcIP"
+	EnvKubeSvcIP              = "KubeSvcIP"
+	EnvUseIPasNodeName        = "UseIPasNodeName"
+)
+
+const (
+	MasterRoleLabel = "node-role.kubernetes.io/master"
+)
+
+const (
+	ApplyModeApply     = "apply"
+	ApplyModeLoadImage = "loadImage"
 )
 
 // image module
 const (
-	DefaultImageRootDir          = "/var/lib/sealer/data"
-	DefaultMetadataName          = "Metadata"
-	DefaultImageMetadataFileName = "image_metadata.yaml"
-	ImageScratch                 = "scratch"
-	DefaultImageMetaRootDir      = "/var/lib/sealer/metadata"
-	DefaultImageDBRootDir        = "/var/lib/sealer/metadata/imagedb"
-	DefaultImageMetadataFile     = "/var/lib/sealer/metadata/images_metadata.json"
-	DefaultLayerDir              = "/var/lib/sealer/data/overlay2"
-	DefaultLayerDBRoot           = "/var/lib/sealer/metadata/layerdb"
+	DefaultMetadataName         = "Metadata"
+	DefaultRegistryDomain       = "sea.hub"
+	DefaultRegistryPort         = 5000
+	DefaultRegistryURL          = "sea.hub:5000"
+	DefaultRegistryHtPasswdFile = "registry_htpasswd"
 )
 
-//about infra
+// about infra
 const (
-	AliDomain         = "sea.aliyun.com/"
-	Eip               = AliDomain + "ClusterEIP"
-	RegistryDirName   = "registry"
-	Master0InternalIP = AliDomain + "Master0InternalIP"
-	EipID             = AliDomain + "EipID"
-	Master0ID         = AliDomain + "Master0ID"
-	VpcID             = AliDomain + "VpcID"
-	VSwitchID         = AliDomain + "VSwitchID"
-	SecurityGroupID   = AliDomain + "SecurityGroupID"
+	AliDomain       = "sea.aliyun.com/"
+	Eip             = AliDomain + "ClusterEIP"
+	RegistryDirName = "registry"
 )
 
-//CRD kind
+// CRD kind
 const (
-	Config  = "Config"
-	Plugin  = "Plugin"
-	Cluster = "Cluster"
+	KubeletConfiguration   = "KubeletConfiguration"
+	KubeProxyConfiguration = "KubeProxyConfiguration"
 )
 
+// plugin type
 const (
-	LocalBuild     = "local"
-	LiteBuild      = "lite"
-	ContainerBuild = "container"
-	AliCloudBuild  = "cloud"
+	TAINT    = "TAINT"
+	LABEL    = "LABEL"
+	HOSTNAME = "HOSTNAME"
 )
 
+// default cluster runtime configuration
 const (
-	JoinSubCmd   = "join"
-	DeleteSubCmd = "delete"
+	DefaultVIP             = "10.103.97.2"
+	DefaultVIPForIPv6      = "1248:4003:10bb:6a01:83b9:6360:c66d:0002"
+	DefaultAPIserverDomain = "apiserver.cluster.local"
 )
 
 const (
@@ -124,15 +133,8 @@ const (
 const APIServerDomain = "apiserver.cluster.local"
 
 const (
-	DeleteCmd       = "rm -rf %s"
-	ChmodCmd        = "chmod +x %s"
-	TmpTarFile      = "/tmp/%s.tar"
-	ZipCmd          = "tar zcvf %s %s"
-	UnzipCmd        = "mkdir -p %s && tar xvf %s -C %s"
-	CdAndExecCmd    = "cd %s && %s"
-	TagImageCmd     = "%s tag %s %s"
-	PushImageCmd    = "%s push %s"
-	BuildClusterCmd = "%s build -f %s -t %s -m %s %s"
+	CdAndExecCmd        = "cd %s && %s"
+	CdIfExistAndExecCmd = "if [ ! -d %s ];then exit 0;fi; cd %s && %s"
 )
 
 const (
@@ -141,12 +143,16 @@ const (
 	WINDOWS            = "windows"
 )
 
-func GetClusterWorkDir(clusterName string) string {
-	return filepath.Join(GetHomeDir(), ".sealer", clusterName)
+func GetSealerWorkDir() string {
+	return filepath.Join(GetHomeDir(), ".sealer")
 }
 
-func GetClusterWorkClusterfile(clusterName string) string {
-	return filepath.Join(GetClusterWorkDir(clusterName), "Clusterfile")
+func GetDefaultClusterfile() string {
+	return filepath.Join(GetSealerWorkDir(), "Clusterfile")
+}
+
+func GetDefaultApplicationFile() string {
+	return filepath.Join(GetSealerWorkDir(), "application.json")
 }
 
 func DefaultRegistryAuthConfigDir() string {
@@ -155,42 +161,6 @@ func DefaultRegistryAuthConfigDir() string {
 
 func DefaultKubeConfigDir() string {
 	return filepath.Join(GetHomeDir(), ".kube")
-}
-
-func DefaultKubeConfigFile() string {
-	return filepath.Join(DefaultKubeConfigDir(), "config")
-}
-
-func DefaultMountCloudImageDir(clusterName string) string {
-	return filepath.Join(DefaultClusterRootfsDir, clusterName, "mount")
-}
-
-func DefaultTheClusterRootfsDir(clusterName string) string {
-	return filepath.Join(DefaultClusterRootfsDir, clusterName, "rootfs")
-}
-
-func DefaultTheClusterNydusdDir(clusterName string) string {
-	return filepath.Join(DefaultClusterRootfsDir, clusterName, "nydusd")
-}
-
-func DefaultTheClusterNydusdFileDir(clusterName string) string {
-	return filepath.Join(DefaultClusterRootfsDir, clusterName, "nydusdfile")
-}
-
-func DefaultTheClusterRootfsPluginDir(clusterName string) string {
-	return filepath.Join(DefaultTheClusterRootfsDir(clusterName), "plugin")
-}
-
-func TheDefaultClusterPKIDir(clusterName string) string {
-	return filepath.Join(DefaultClusterRootfsDir, clusterName, "pki")
-}
-
-func TheDefaultClusterCertDir(clusterName string) string {
-	return filepath.Join(DefaultClusterRootfsDir, clusterName, "certs")
-}
-
-func DefaultClusterBaseDir(clusterName string) string {
-	return filepath.Join(DefaultClusterRootfsDir, clusterName)
 }
 
 func GetHomeDir() string {

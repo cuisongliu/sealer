@@ -16,20 +16,17 @@ package container
 
 import (
 	"fmt"
+	"net"
 	"os"
 	"strconv"
 	"time"
 
-	"github.com/docker/docker/api/types/mount"
-
-	"github.com/alibaba/sealer/pkg/infra/container/client"
-	"github.com/alibaba/sealer/pkg/infra/container/client/docker"
-
-	"github.com/alibaba/sealer/common"
-	"github.com/alibaba/sealer/logger"
-	v1 "github.com/alibaba/sealer/types/api/v1"
-	"github.com/alibaba/sealer/utils"
-	"github.com/alibaba/sealer/utils/ssh"
+	"github.com/sealerio/sealer/pkg/infra/container/client"
+	"github.com/sealerio/sealer/pkg/infra/container/client/docker"
+	v1 "github.com/sealerio/sealer/types/api/v1"
+	osi "github.com/sealerio/sealer/utils/os"
+	"github.com/sealerio/sealer/utils/ssh"
+	"github.com/sirupsen/logrus"
 )
 
 const (
@@ -42,8 +39,12 @@ const (
 	RoleLabel           = "sealer-io-role"
 	RoleLabelMaster     = "sealer-io-role-is-master"
 	NetworkName         = "sealer-network"
-	ImageName           = "registry.cn-qingdao.aliyuncs.com/sealer-io/sealer-base-image:latest"
+	ImageName           = "sealerio/sealer-base-image:v1"
 	SealerImageRootPath = "/var/lib/sealer"
+	// for check rootless docker in info.SecurityOptions
+	RootlessDocker = "name=rootless"
+	// for check overlay2 StorageDriver in info.StorageDriver
+	Overlay2 = "overlay2"
 )
 
 type ApplyProvider struct {
@@ -53,14 +54,14 @@ type ApplyProvider struct {
 
 type ApplyResult struct {
 	ToJoinNumber   int
-	ToDeleteIPList []string
+	ToDeleteIPList []net.IP
 	Role           string
 }
 
 func (a *ApplyProvider) Apply() error {
 	// delete apply
 	if a.Cluster.DeletionTimestamp != nil {
-		logger.Info("deletion timestamp not nil, will clear infra")
+		logrus.Info("deletion timestamp not nil, will clear infra")
 		return a.CleanUp()
 	}
 	// new apply
@@ -90,7 +91,14 @@ func (a *ApplyProvider) CheckServerInfo() error {
 	if err != nil {
 		return fmt.Errorf("failed to get docker server, please check docker server running status")
 	}
-	if info.StorageDriver != "overlay2" {
+
+	for _, opt := range info.SecurityOptions {
+		if opt == RootlessDocker {
+			return fmt.Errorf("do not support rootless docker currently")
+		}
+	}
+
+	if info.StorageDriver != Overlay2 {
 		return fmt.Errorf("only support storage driver overlay2 ,but current is :%s", info.StorageDriver)
 	}
 
@@ -98,13 +106,11 @@ func (a *ApplyProvider) CheckServerInfo() error {
 		return fmt.Errorf("cpu number of docker server must greater than 1 ,but current is :%d", info.CPUNumber)
 	}
 
-	for _, opt := range info.SecurityOptions {
-		if opt == "name=rootless" {
-			return fmt.Errorf("do not support rootless docker currently")
-		}
+	if !info.MemoryLimit || !info.PidsLimit || !info.CPUShares {
+		return fmt.Errorf("requires setting systemd property \"Delegate=yes\"")
 	}
 
-	if !utils.IsFileExist(DockerHost) && os.Getenv("DOCKER_HOST") == "" {
+	if !osi.IsFileExist(DockerHost) && os.Getenv("DOCKER_HOST") == "" {
 		return fmt.Errorf("sealer user default docker host /var/run/docker.sock, please set env DOCKER_HOST='' to override it")
 	}
 
@@ -131,24 +137,22 @@ func (a *ApplyProvider) ReconcileContainer() error {
 	if currentMasterNum+masterApplyResult.ToJoinNumber-len(masterApplyResult.ToDeleteIPList) <= 0 {
 		return fmt.Errorf("master number can not be 0")
 	}
-	logger.Info("master apply result: ToJoinNumber %d, ToDeleteIpList : %s",
+	logrus.Infof("master apply result: ToJoinNumber %d, ToDeleteIpList : %s",
 		masterApplyResult.ToJoinNumber, masterApplyResult.ToDeleteIPList)
 
-	logger.Info("node apply result: ToJoinNumber %d, ToDeleteIpList : %s",
+	logrus.Infof("node apply result: ToJoinNumber %d, ToDeleteIpList : %s",
 		nodeApplyResult.ToJoinNumber, nodeApplyResult.ToDeleteIPList)
 
 	if err := a.applyResult(masterApplyResult); err != nil {
 		return err
 	}
-	if err := a.applyResult(nodeApplyResult); err != nil {
-		return err
-	}
-	return nil
+	return a.applyResult(nodeApplyResult)
 }
 
 func (a *ApplyProvider) applyResult(result *ApplyResult) error {
 	// create or delete an update iplist
-	if result.Role == MASTER {
+	switch result.Role {
+	case MASTER:
 		if result.ToJoinNumber > 0 {
 			joinIPList, err := a.applyToJoin(result.ToJoinNumber, result.Role)
 			if err != nil {
@@ -164,9 +168,7 @@ func (a *ApplyProvider) applyResult(result *ApplyResult) error {
 			a.Cluster.Spec.Masters.IPList = a.Cluster.Spec.Masters.IPList[:len(a.Cluster.Spec.Masters.IPList)-
 				len(result.ToDeleteIPList)]
 		}
-	}
-
-	if result.Role == NODE {
+	case NODE:
 		if result.ToJoinNumber > 0 {
 			joinIPList, err := a.applyToJoin(result.ToJoinNumber, result.Role)
 			if err != nil {
@@ -182,15 +184,17 @@ func (a *ApplyProvider) applyResult(result *ApplyResult) error {
 			a.Cluster.Spec.Nodes.IPList = a.Cluster.Spec.Nodes.IPList[:len(a.Cluster.Spec.Nodes.IPList)-
 				len(result.ToDeleteIPList)]
 		}
+	default:
+		return fmt.Errorf("unknown node role: %q", result.Role)
 	}
 	return nil
 }
 
-func (a *ApplyProvider) applyToJoin(toJoinNumber int, role string) ([]string, error) {
+func (a *ApplyProvider) applyToJoin(toJoinNumber int, role string) ([]net.IP, error) {
 	// run container and return append ip list
-	var toJoinIPList []string
+	var toJoinIPList []net.IP
 	for i := 0; i < toJoinNumber; i++ {
-		name := fmt.Sprintf("sealer-%s-%s", role, utils.GenUniqueID(10))
+		name := fmt.Sprintf("sealer-%s-%s", role, GenUniqueID(10))
 		opts := &client.CreateOptsForContainer{
 			ImageName:         ImageName,
 			NetworkName:       NetworkName,
@@ -202,16 +206,6 @@ func (a *ApplyProvider) applyToJoin(toJoinNumber int, role string) ([]string, er
 		}
 		if len(a.Cluster.Spec.Masters.IPList) == 0 && i == 0 {
 			opts.ContainerLabel[RoleLabelMaster] = "true"
-			sealerMount := mount.Mount{
-				Type:     mount.TypeBind,
-				Source:   SealerImageRootPath,
-				Target:   SealerImageRootPath,
-				ReadOnly: false,
-				BindOptions: &mount.BindOptions{
-					Propagation: mount.PropagationRPrivate,
-				},
-			}
-			opts.Mount = append(opts.Mount, sealerMount)
 		}
 
 		containerID, err := a.Provider.RunContainer(opts)
@@ -224,18 +218,18 @@ func (a *ApplyProvider) applyToJoin(toJoinNumber int, role string) ([]string, er
 			return toJoinIPList, fmt.Errorf("failed to get container info of %s,error is %v", containerID, err)
 		}
 
-		err = a.changeDefaultPasswd(info.ContainerIP)
+		err = a.changeDefaultPasswd(net.ParseIP(info.ContainerIP))
 		if err != nil {
 			return nil, fmt.Errorf("failed to change container password of %s,error is %v", containerID, err)
 		}
 
 		a.Cluster.Annotations[info.ContainerIP] = containerID
-		toJoinIPList = append(toJoinIPList, info.ContainerIP)
+		toJoinIPList = append(toJoinIPList, net.ParseIP(info.ContainerIP))
 	}
 	return toJoinIPList, nil
 }
 
-func (a *ApplyProvider) changeDefaultPasswd(containerIP string) error {
+func (a *ApplyProvider) changeDefaultPasswd(containerIP net.IP) error {
 	if a.Cluster.Spec.SSH.Passwd == "" {
 		return nil
 	}
@@ -254,48 +248,46 @@ func (a *ApplyProvider) changeDefaultPasswd(containerIP string) error {
 	}
 
 	cmd := fmt.Sprintf(ChangePasswordCmd, a.Cluster.Spec.SSH.Passwd)
-	_, err := sshClient.Cmd(containerIP, cmd)
+	_, err := sshClient.Cmd(containerIP, nil, cmd)
 	return err
 }
 
-func (a *ApplyProvider) applyToDelete(deleteIPList []string) error {
+func (a *ApplyProvider) applyToDelete(deleteIPList []net.IP) error {
 	// delete container and return deleted ip list
 	for _, ip := range deleteIPList {
-		id, ok := a.Cluster.Annotations[ip]
+		id, ok := a.Cluster.Annotations[ip.String()]
 		if !ok {
-			logger.Warn("failed to delete container %s", ip)
+			logrus.Warnf("failed to delete container %s", ip)
 			continue
 		}
 		err := a.Provider.RmContainer(id)
 		if err != nil {
 			return fmt.Errorf("failed to delete container:%s", id)
 		}
-		delete(a.Cluster.Annotations, ip)
+		delete(a.Cluster.Annotations, ip.String())
 	}
 	return nil
 }
 
 func (a *ApplyProvider) CleanUp() error {
-	/*	a,clean up container,cleanup image,clean up network
-		b,rm -rf /var/lib/sealer/data/my-cluster
-	*/
-	var iplist []string
+	//clean up container,cleanup image,clean up network
+	var iplist []net.IP
 	iplist = append(iplist, a.Cluster.Spec.Masters.IPList...)
 	iplist = append(iplist, a.Cluster.Spec.Nodes.IPList...)
 
 	for _, ip := range iplist {
-		id, ok := a.Cluster.Annotations[ip]
+		id, ok := a.Cluster.Annotations[ip.String()]
 		if !ok {
 			continue
 		}
 		err := a.Provider.RmContainer(id)
 		if err != nil {
 			// log it
-			logger.Info("failed to delete container:%s", id)
+			logrus.Infof("failed to delete container:%s", id)
+			return err
 		}
-		continue
 	}
-	utils.CleanDir(common.DefaultClusterBaseDir(a.Cluster.Name))
+
 	return nil
 }
 

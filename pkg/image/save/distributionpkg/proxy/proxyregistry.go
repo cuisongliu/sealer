@@ -16,11 +16,16 @@ package proxy
 
 import (
 	"context"
-	"crypto/tls"
+	"net"
 	"net/http"
 	"net/url"
+	"path/filepath"
 	"strings"
 	"sync"
+	"time"
+
+	"github.com/docker/docker/registry"
+	"github.com/docker/go-connections/tlsconfig"
 
 	"github.com/distribution/distribution/v3"
 	"github.com/distribution/distribution/v3/configuration"
@@ -50,64 +55,6 @@ func NewRegistryPullThroughCache(ctx context.Context, registry distribution.Name
 		return nil, err
 	}
 
-	// v := storage.NewVacuum(ctx, driver)
-	// s := scheduler.New(ctx, driver, "/scheduler-state.json")
-	// s.OnBlobExpire(func(ref reference.Reference) error {
-	// 	var r reference.Canonical
-	// 	var ok bool
-	// 	if r, ok = ref.(reference.Canonical); !ok {
-	// 		return fmt.Errorf("unexpected reference type : %T", ref)
-	// 	}
-
-	// 	repo, err := registry.Repository(ctx, r)
-	// 	if err != nil {
-	// 		return err
-	// 	}
-
-	// 	blobs := repo.Blobs(ctx)
-
-	// 	// Clear the repository reference and descriptor caches
-	// 	err = blobs.Delete(ctx, r.Digest())
-	// 	if err != nil {
-	// 		return err
-	// 	}
-
-	// 	err = v.RemoveBlob(r.Digest().String())
-	// 	if err != nil {
-	// 		return err
-	// 	}
-
-	// 	return nil
-	// })
-
-	// s.OnManifestExpire(func(ref reference.Reference) error {
-	// 	var r reference.Canonical
-	// 	var ok bool
-	// 	if r, ok = ref.(reference.Canonical); !ok {
-	// 		return fmt.Errorf("unexpected reference type : %T", ref)
-	// 	}
-
-	// 	repo, err := registry.Repository(ctx, r)
-	// 	if err != nil {
-	// 		return err
-	// 	}
-
-	// 	manifests, err := repo.Manifests(ctx)
-	// 	if err != nil {
-	// 		return err
-	// 	}
-	// 	err = manifests.Delete(ctx, r.Digest())
-	// 	if err != nil {
-	// 		return err
-	// 	}
-	// 	return nil
-	// })
-
-	// err = s.Start()
-	// if err != nil {
-	// 	return nil, err
-	// }
-
 	cs, err := configureAuth(config.Username, config.Password, config.RemoteURL)
 	if err != nil {
 		return nil, err
@@ -136,9 +83,25 @@ func (pr *proxyingRegistry) Repositories(ctx context.Context, repos []string, la
 // #nosec
 func (pr *proxyingRegistry) Repository(ctx context.Context, name reference.Named) (distribution.Repository, error) {
 	c := pr.authChallenger
-
+	tlsConfig := tlsconfig.ServerDefault()
+	if err := registry.ReadCertsDirectory(tlsConfig, filepath.Join(registry.CertsDir(), pr.remoteURL.Host)); err != nil {
+		return nil, err
+	}
+	transSport := &http.Transport{
+		Proxy: http.ProxyFromEnvironment,
+		DialContext: (&net.Dialer{
+			Timeout:   30 * time.Second,
+			KeepAlive: 30 * time.Second,
+		}).DialContext,
+		ForceAttemptHTTP2:     true,
+		MaxIdleConns:          100,
+		IdleConnTimeout:       90 * time.Second,
+		TLSHandshakeTimeout:   10 * time.Second,
+		ExpectContinueTimeout: 1 * time.Second,
+		TLSClientConfig:       tlsConfig,
+	}
 	tkopts := auth.TokenHandlerOptions{
-		Transport:   http.DefaultTransport,
+		Transport:   transSport,
 		Credentials: c.credentialStore(),
 		Scopes: []auth.Scope{
 			auth.RepositoryScope{
@@ -155,7 +118,8 @@ func (pr *proxyingRegistry) Repository(ctx context.Context, name reference.Named
 	tryClient := &http.Client{Transport: tr}
 	_, err := tryClient.Get(pr.remoteURL.String())
 	if err != nil && strings.Contains(err.Error(), certUnknown) {
-		tr = transport.NewTransport(&http.Transport{TLSClientConfig: &tls.Config{InsecureSkipVerify: true}},
+		tlsConfig.InsecureSkipVerify = true
+		tr = transport.NewTransport(transSport,
 			auth.NewAuthorizer(c.challengeManager(),
 				auth.NewTokenHandlerWithOptions(tkopts)))
 	}

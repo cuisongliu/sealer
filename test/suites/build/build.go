@@ -15,48 +15,53 @@
 package build
 
 import (
-	"bytes"
 	"fmt"
-	"io/ioutil"
-	"os"
 	"path/filepath"
-	"strconv"
 	"strings"
 
-	"github.com/onsi/gomega"
-
-	"github.com/alibaba/sealer/test/testhelper/settings"
-	"github.com/alibaba/sealer/utils"
+	"github.com/sealerio/sealer/test/testhelper/settings"
+	"github.com/sealerio/sealer/utils/exec"
 )
 
-func GetFixtures() string {
-	return filepath.Join(settings.DefaultTestEnvDir, "suites", "build", "fixtures")
+// GetBuildImageName return specific image name for sealer build test
+func GetBuildImageName() string {
+	buildImageName := "docker.io/sealerio/build-test:v1"
+	if settings.RegistryURL != "" && settings.RegistryUsername != "" && settings.RegistryPasswd != "" {
+		buildImageName = settings.RegistryURL + "/" + settings.RegistryUsername + "/" + "build-test:v1"
+	}
+	return buildImageName
 }
 
-func GetLiteBuildDir() string {
-	return "lite_build"
+func WithCmdsBuildDir() string {
+	return filepath.Join(settings.DefaultTestEnvDir, "suites", "build", "fixtures",
+		"build_with_cmds")
 }
 
-func GetCloudBuildDir() string {
-	return "cloud_build"
+func WithImageListFlagBuildDir() string {
+	return filepath.Join(settings.DefaultTestEnvDir, "suites", "build", "fixtures",
+		"build_with_imagelist_flag")
 }
 
-func GetContainerBuildDir() string {
-	return "container_build"
+func WithLaunchBuildDir() string {
+	return filepath.Join(settings.DefaultTestEnvDir, "suites", "build", "fixtures",
+		"build_with_launch")
 }
 
-// GetTestImageName return specific image name that will be push to registry
-func GetTestImageName() string {
-	return fmt.Sprintf("sealer-io/%s%d:%s", settings.ImageName, 719, "v1")
+func WithAPPCmdsBuildDir() string {
+	return filepath.Join(settings.DefaultTestEnvDir, "suites", "build", "fixtures",
+		"build_with_appcmds")
 }
 
-//GetImageNameTemplate return image name only for local build
-func GetImageNameTemplate(name string) string {
-	return fmt.Sprintf("sealer-io-test/%s%s:%s", settings.ImageName, name, "v1")
+func WithMultiArchBuildDir() string {
+	return filepath.Join(settings.DefaultTestEnvDir, "suites", "build", "fixtures",
+		"build_with_multi_arch")
 }
 
 type ArgsOfBuild struct {
-	KubeFile, ImageName, Context, BuildType string
+	KubeFile, ImageName, Context string
+	Platform                     []string
+	ImageList                    string
+	ImageType                    string
 }
 
 func (a *ArgsOfBuild) SetKubeFile(kubeFile string) *ArgsOfBuild {
@@ -74,56 +79,75 @@ func (a *ArgsOfBuild) SetContext(context string) *ArgsOfBuild {
 	return a
 }
 
-func (a *ArgsOfBuild) SetBuildType(buildType string) *ArgsOfBuild {
-	a.BuildType = buildType
+func (a *ArgsOfBuild) SetPlatforms(platforms []string) *ArgsOfBuild {
+	a.Platform = platforms
 	return a
 }
 
-func (a *ArgsOfBuild) Build() string {
+func (a *ArgsOfBuild) SetImageList(imageList string) *ArgsOfBuild {
+	a.ImageList = imageList
+	return a
+}
+
+func (a *ArgsOfBuild) SetImageType(imageType string) *ArgsOfBuild {
+	a.ImageType = imageType
+	return a
+}
+
+func (a *ArgsOfBuild) String() string {
 	if settings.DefaultSealerBin == "" || a.KubeFile == "" || a.ImageName == "" {
 		return ""
 	}
 
+	var buildFlags []string
+	buildFlags = append(buildFlags, fmt.Sprintf("%s build", settings.DefaultSealerBin))
+
+	// add kubefile flag
+	if a.KubeFile != "" {
+		buildFlags = append(buildFlags, fmt.Sprintf("-f %s", a.KubeFile))
+	}
+
+	// add image tag flag
+	if a.ImageName != "" {
+		buildFlags = append(buildFlags, fmt.Sprintf("-t %s", a.ImageName))
+	}
+
+	// add image list flag
+	if a.ImageList != "" {
+		buildFlags = append(buildFlags, fmt.Sprintf("--image-list %s", a.ImageList))
+	}
+
+	// add platform flag
+	if len(a.Platform) != 0 {
+		buildFlags = append(buildFlags, fmt.Sprintf("--platform %s", strings.Join(a.Platform, ",")))
+	}
+
+	// add image type
+	if a.ImageType != "" {
+		buildFlags = append(buildFlags, fmt.Sprintf("--type %s", a.ImageType))
+	}
+
+	// add build context
 	if a.Context == "" {
 		a.Context = "."
 	}
+	buildFlags = append(buildFlags, a.Context)
 
-	if a.BuildType == "" {
-		a.BuildType = settings.LiteBuild
-	}
-	return fmt.Sprintf("%s build -f %s -t %s -m %s %s -d", settings.DefaultSealerBin, a.KubeFile, a.ImageName, a.BuildType, a.Context)
+	return strings.Join(buildFlags, " ")
 }
 
 func NewArgsOfBuild() *ArgsOfBuild {
 	return &ArgsOfBuild{}
 }
 
+func CheckIsMultiArchImageExist(imageName string) bool {
+	cmd := fmt.Sprintf("%s alpha manifest inspect %s", settings.DefaultSealerBin, imageName)
+	_, err := exec.RunSimpleCmd(cmd)
+	return err == nil
+}
+
 func CheckIsImageExist(imageName string) bool {
-	cmd := fmt.Sprintf("%s images | grep %s | wc -l", settings.DefaultSealerBin, imageName)
-	result, err := utils.RunSimpleCmd(cmd)
-	gomega.Expect(err).NotTo(gomega.HaveOccurred())
-	num, err := strconv.Atoi(strings.Replace(result, "\n", "", -1))
-	gomega.Expect(err).NotTo(gomega.HaveOccurred())
-	return num == 1
-}
-
-func CheckClusterFile(imageName string) bool {
-	cmd := fmt.Sprintf("%s images | grep %s | awk '{print $4}'", settings.DefaultSealerBin, imageName)
-	result, err := utils.RunSimpleCmd(cmd)
-	gomega.Expect(err).NotTo(gomega.HaveOccurred())
-	cmd = fmt.Sprintf("%s inspect -c %s | grep Cluster | wc -l", settings.DefaultSealerBin,
-		strings.Replace(result, "\n", "", -1))
-	result, err = utils.RunSimpleCmd(cmd)
-	gomega.Expect(err).NotTo(gomega.HaveOccurred())
-	num, err := strconv.Atoi(strings.Replace(result, "\n", "", -1))
-	gomega.Expect(err).NotTo(gomega.HaveOccurred())
-	return num == 1
-}
-
-func UpdateKubeFromImage(imageName string, KubefilePath string) {
-	Kube, err := ioutil.ReadFile(filepath.Clean(KubefilePath))
-	gomega.Expect(err).NotTo(gomega.HaveOccurred())
-	Kube = append([]byte(fmt.Sprintf("FROM %s", imageName)), Kube[bytes.IndexByte(Kube, '\n'):]...) // #nosec
-	err = ioutil.WriteFile(KubefilePath, Kube, os.ModePerm)
-	gomega.Expect(err).NotTo(gomega.HaveOccurred())
+	cmd := fmt.Sprintf("%s inspect %s", settings.DefaultSealerBin, imageName)
+	_, err := exec.RunSimpleCmd(cmd)
+	return err == nil
 }

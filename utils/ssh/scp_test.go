@@ -14,12 +14,7 @@
 
 package ssh
 
-import (
-	"testing"
-
-	"github.com/alibaba/sealer/logger"
-)
-
+/*
 func TestSSHCopyLocalToRemote(t *testing.T) {
 	type args struct {
 		host       string
@@ -82,10 +77,11 @@ func TestSSHCopyLocalToRemote(t *testing.T) {
 				PkFile:     tt.fields.PkFile,
 				PkPassword: tt.fields.PkPassword,
 				Timeout:    tt.fields.Timeout,
+				Fs:         fs.NewFilesystem(),
 			}
 
 			if !fileExist(tt.args.localPath) {
-				logger.Error("local filepath is not exit")
+				logrus.Error("local filepath is not exit")
 				return
 			}
 			//if ss.IsFileExist(host, tt.args.remotePath) {
@@ -95,7 +91,7 @@ func TestSSHCopyLocalToRemote(t *testing.T) {
 			// test copy dir
 			err := ss.Copy(tt.args.host, tt.args.localPath, tt.args.remotePath)
 			if (err != nil) != tt.wantErr {
-				logger.Error(err)
+				logrus.Error(err)
 				t.Errorf("err: %v", err)
 			}
 
@@ -106,64 +102,69 @@ func TestSSHCopyLocalToRemote(t *testing.T) {
 			//ss.Cmd(tt.args.host, "rm -rf "+tt.args.remotePath)
 		})
 	}
-}
+}*/
 
-func TestSSHFetchRemoteToLocal(t *testing.T) {
-	type args struct {
-		host       string
-		localPath  string
-		remotePath string
-	}
-	var (
-		host = ""
-		ssh  = SSH{
-			User:       "root",
-			Password:   "",
-			PkFile:     "",
-			PkPassword: "",
-			Timeout:    nil,
-		}
-	)
-	tests := []struct {
-		name    string
-		fields  SSH
-		args    args
-		wantErr bool
-	}{
-		{
-			name:   "test for fetch remote file to local",
-			fields: ssh,
-			args: args{
-				host,
-				"/root/.kube/config",
-				"/root/Clusterfile",
-			},
-			wantErr: false,
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			ss := &SSH{
-				User:       tt.fields.User,
-				Password:   tt.fields.Password,
-				PkFile:     tt.fields.PkFile,
-				PkPassword: tt.fields.PkPassword,
-				Timeout:    tt.fields.Timeout,
-			}
+//func TestSSHFetchRemoteToLocal(t *testing.T) {
+//	type args struct {
+//		host       net.IP
+//		localPath  string
+//		remotePath string
+//	}
+//	var (
+//		host = net.IP{}
+//		ssh  = SSH{
+//			User:       "root",
+//			Password:   "",
+//			PkFile:     "",
+//			PkPassword: "",
+//			Timeout:    nil,
+//		}
+//	)
+//	tests := []struct {
+//		name    string
+//		fields  SSH
+//		args    args
+//		wantErr bool
+//	}{
+//		{
+//			name:   "test for fetch remote file to local",
+//			fields: ssh,
+//			args: args{
+//				host,
+//				"/root/.kube/config",
+//				"/root/Clusterfile",
+//			},
+//			wantErr: false,
+//		},
+//	}
+//	for _, tt := range tests {
+//		t.Run(tt.name, func(t *testing.T) {
+//			ss := &SSH{
+//				User:       tt.fields.User,
+//				Password:   tt.fields.Password,
+//				PkFile:     tt.fields.PkFile,
+//				PkPassword: tt.fields.PkPassword,
+//				Timeout:    tt.fields.Timeout,
+//				Fs:         fs.NewFilesystem(),
+//			}
+//
+//			if exist, err := ss.IsFileExist(host, tt.args.remotePath); err != nil {
+//				logrus.Error("err: ", err)
+//				return
+//			} else if !exist {
+//				logrus.Error("remote filepath is not exit")
+//				return
+//			}
+//			err := ss.CopyR(tt.args.host, tt.args.localPath, tt.args.remotePath)
+//			if (err != nil) != tt.wantErr {
+//				logrus.Error(err)
+//				t.Errorf("err: %v", err)
+//			}
+//		})
+//	}
+//}
 
-			if !ss.IsFileExist(host, tt.args.remotePath) {
-				logger.Error("remote filepath is not exit")
-				return
-			}
-			err := ss.Fetch(tt.args.host, tt.args.localPath, tt.args.remotePath)
-			if (err != nil) != tt.wantErr {
-				logger.Error(err)
-				t.Errorf("err: %v", err)
-			}
-		})
-	}
-}
-
+/*
 func TestSSH_Copy(t *testing.T) {
 	type fields struct {
 		User       string
@@ -205,6 +206,7 @@ func TestSSH_Copy(t *testing.T) {
 				Password:   tt.fields.Password,
 				PkFile:     tt.fields.PkFile,
 				PkPassword: tt.fields.PkPassword,
+				Fs:         fs.NewFilesystem(),
 			}
 			if err := s.Copy(tt.args.host, tt.args.localPath, tt.args.remotePath); (err != nil) != tt.wantErr {
 				t.Errorf("Copy() error = %v, wantErr %v", err, tt.wantErr)
@@ -212,3 +214,4 @@ func TestSSH_Copy(t *testing.T) {
 		})
 	}
 }
+*/

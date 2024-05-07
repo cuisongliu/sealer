@@ -19,10 +19,11 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 
-	"github.com/alibaba/sealer/common"
-	"github.com/alibaba/sealer/logger"
-	"github.com/alibaba/sealer/pkg/client/k8s"
-	v2 "github.com/alibaba/sealer/types/api/v2"
+	"github.com/sirupsen/logrus"
+
+	"github.com/sealerio/sealer/common"
+	"github.com/sealerio/sealer/pkg/client/k8s"
+	v2 "github.com/sealerio/sealer/types/api/v2"
 )
 
 type PodChecker struct {
@@ -43,7 +44,7 @@ func (n *PodChecker) Check(cluster *v2.Cluster, phase string) error {
 	if phase != PhasePost {
 		return nil
 	}
-	c, err := k8s.Newk8sClient()
+	c, err := k8s.NewK8sClient()
 	if err != nil {
 		return err
 	}
@@ -54,8 +55,8 @@ func (n *PodChecker) Check(cluster *v2.Cluster, phase string) error {
 		return err
 	}
 	for _, podNamespace := range namespacePodList {
-		var runningCount uint32 = 0
-		var notRunningCount uint32 = 0
+		var runningCount uint32
+		var notRunningCount uint32
 		var podCount uint32
 		var notRunningPodList []*corev1.Pod
 		for _, pod := range podNamespace.PodList.Items {
@@ -105,7 +106,7 @@ func (n *PodChecker) Output(podNamespaceStatusList []PodNamespaceStatus) error {
 	t = template.Must(t, err)
 	err = t.Execute(common.StdOut, podNamespaceStatusList)
 	if err != nil {
-		logger.Error("pod checkers template can not excute %s", err)
+		logrus.Errorf("pod checkers template can not execute %s", err)
 		return err
 	}
 	return nil

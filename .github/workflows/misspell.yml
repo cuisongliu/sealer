@@ -1,4 +1,4 @@
-name: Check Misspell
+name: Check misspell
 
 on:
   pull_request:
@@ -10,9 +10,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - name: Check out code
-      uses: actions/checkout@v2
+      uses: actions/checkout@v3
 
     - name: Check Misspell
       uses: docker://dragonflyoss/linter:v0.2.7
       with:
-        args: bash -c "find . -type f | grep -v vendor | xargs misspell -error"
+        args: bash -c "find . -type f | grep -v vendor | grep -v go.sum | xargs misspell -error"

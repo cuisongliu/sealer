@@ -16,6 +16,7 @@ package utils
 
 import (
 	"fmt"
+	"net"
 	"regexp"
 	"time"
 )
@@ -33,11 +34,7 @@ func Retry(tryTimes int, trySleepTime time.Duration, action func() error) error 
 	return fmt.Errorf("retry action timeout: %v", err)
 }
 
-func WrapExecResult(host, command string, output []byte, err error) error {
-	return fmt.Errorf("failed to execute command(%s) on host(%s): output(%s), error(%v)", command, host, output, err)
-}
-
-// ConfirmOperation confirm whether to continue with the operation，typing yes will return true.
+// ConfirmOperation confirm whether to continue with the operation, typing yes will return true.
 func ConfirmOperation(promptInfo string) (bool, error) {
 	var yesRx = regexp.MustCompile("^(?:y(?:es)?)$")
 	var noRx = regexp.MustCompile("^(?:n(?:o)?)$")
@@ -56,4 +53,8 @@ func ConfirmOperation(promptInfo string) (bool, error) {
 		}
 	}
 	return true, nil
+}
+
+func WrapExecResult(host net.IP, command string, output []byte, err error) error {
+	return fmt.Errorf("failed to execute command(%s) on host(%s): output(%s), error(%v)", command, host.String(), output, err)
 }

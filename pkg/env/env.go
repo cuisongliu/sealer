@@ -15,54 +15,32 @@
 package env
 
 import (
+	"encoding/base64"
 	"fmt"
-	"html/template"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
-
-	v2 "github.com/alibaba/sealer/types/api/v2"
-	"github.com/alibaba/sealer/utils"
+	"text/template"
 )
 
 const templateSuffix = ".tmpl"
 
-type Interface interface {
-	// WrapperShell :If host already set env like DATADISK=/data
-	// This function add env to the shell, like:
-	// Input shell: cat /etc/hosts
-	// Output shell: DATADISK=/data cat /etc/hosts
-	// So that you can get env values in you shell script
-	WrapperShell(host, shell string) string
-	// RenderAll :render env to all the files in dir
-	RenderAll(host, dir string) error
+func base64encode(v string) string {
+	return base64.StdEncoding.EncodeToString([]byte(v))
 }
 
-type processor struct {
-	*v2.Cluster
-}
-
-func NewEnvProcessor(cluster *v2.Cluster) Interface {
-	return &processor{cluster}
-}
-
-func (p *processor) WrapperShell(host, shell string) string {
-	var env string
-	for k, v := range p.getHostEnv(host) {
-		switch value := v.(type) {
-		case []string:
-			env = fmt.Sprintf("%s%s=(%s) ", env, k, strings.Join(value, " "))
-		case string:
-			env = fmt.Sprintf("%s%s=%s ", env, k, value)
-		}
+func base64decode(v string) string {
+	data, err := base64.StdEncoding.DecodeString(v)
+	if err != nil {
+		return err.Error()
 	}
-	if env == "" {
-		return shell
-	}
-	return fmt.Sprintf("%s&& %s", env, shell)
+	return string(data)
 }
 
-func (p *processor) RenderAll(host, dir string) error {
+// RenderTemplate :using renderData got from clusterfile to render all the files in dir with ".tmpl" as suffix.
+// The scope of renderData comes from cluster.spec.env
+func RenderTemplate(dir string, renderData map[string]string) error {
 	return filepath.Walk(dir, func(path string, info os.FileInfo, errIn error) error {
 		if errIn != nil {
 			return errIn
@@ -70,74 +48,47 @@ func (p *processor) RenderAll(host, dir string) error {
 		if info.IsDir() || !strings.HasSuffix(info.Name(), templateSuffix) {
 			return nil
 		}
-		writer, err := os.OpenFile(strings.TrimSuffix(path, templateSuffix), os.O_CREATE|os.O_RDWR, os.ModePerm)
+		writer, err := os.Create(strings.TrimSuffix(path, templateSuffix))
 		if err != nil {
 			return fmt.Errorf("failed to open file [%s] when render env: %v", path, err)
 		}
 		defer func() {
 			_ = writer.Close()
 		}()
-		t, err := template.ParseFiles(path)
+		t, err := template.New(info.Name()).Funcs(template.FuncMap{
+			"b64enc": base64encode,
+			"b64dec": base64decode,
+		}).ParseFiles(path)
 		if err != nil {
-			return fmt.Errorf("failed to create template: %s %v", path, err)
+			return fmt.Errorf("failed to create template(%s): %v", path, err)
 		}
-		if err := t.Execute(writer, p.getHostEnv(host)); err != nil {
-			return fmt.Errorf("failed to render env template: %s %v", path, err)
+		if err := t.Execute(writer, renderData); err != nil {
+			return fmt.Errorf("failed to render env template(%s): %v", path, err)
 		}
 		return nil
 	})
 }
 
-func mergeList(dst, src []string) []string {
-	for _, s := range src {
-		if utils.InList(s, dst) {
-			continue
-		}
-		dst = append(dst, s)
+// WrapperShell :If target host already set env like DATADISK=/data in the clusterfile,
+// This function will WrapperShell cmd like:
+// Input shell: cat /etc/hosts
+// Output shell: DATADISK=/data cat /etc/hosts
+// it is convenient for user to get env in scripts
+// The scope of env comes from cluster.spec.env and host.env
+func WrapperShell(shell string, wrapperData map[string]string) string {
+	env := getEnvFromData(wrapperData)
+
+	if len(env) == 0 {
+		return shell
 	}
-	return dst
+	return fmt.Sprintf("%s %s", strings.Join(env, " "), shell)
 }
 
-// Merge the host ENV and global env, the host env will overwrite cluster.Spec.Env
-func (p *processor) getHostEnv(hostIP string) (env map[string]interface{}) {
-	var hostEnv []string
-
-	for _, host := range p.Spec.Hosts {
-		for _, ip := range host.IPS {
-			if ip == hostIP {
-				hostEnv = host.Env
-			}
-		}
+func getEnvFromData(wrapperData map[string]string) []string {
+	var env []string
+	for k, v := range wrapperData {
+		env = append(env, fmt.Sprintf("export %s=\"%s\";", k, v))
 	}
-
-	hostEnv = mergeList(hostEnv, p.Spec.Env)
-
-	return convertEnv(hostEnv)
-}
-
-// Covert Env []string to map[string]interface{}, example [IP=127.0.0.1,IP=192.160.0.2,Key=value] will convert to {IP:[127.0.0.1,192.168.0.2],key:value}
-func convertEnv(envList []string) (env map[string]interface{}) {
-	temp := make(map[string][]string)
-	env = make(map[string]interface{})
-
-	for _, e := range envList {
-		var kv []string
-		if kv = strings.SplitN(e, "=", 2); len(kv) != 2 {
-			continue
-		}
-
-		temp[kv[0]] = append(temp[kv[0]], kv[1])
-	}
-
-	for k, v := range temp {
-		if len(v) > 1 {
-			env[k] = v
-			continue
-		}
-		if len(v) == 1 {
-			env[k] = v[0]
-		}
-	}
-
-	return
+	sort.Strings(env)
+	return env
 }

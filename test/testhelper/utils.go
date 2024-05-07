@@ -16,19 +16,23 @@ package testhelper
 
 import (
 	"fmt"
-	"io/ioutil"
+	"net"
 	"os"
 	"path/filepath"
 	"time"
 
+	"github.com/sealerio/sealer/common"
+	"github.com/sealerio/sealer/test/testhelper/settings"
+	v1 "github.com/sealerio/sealer/types/api/v1"
+	"github.com/sealerio/sealer/utils/exec"
+	utilsnet "github.com/sealerio/sealer/utils/net"
+	"github.com/sealerio/sealer/utils/os/fs"
+	"github.com/sealerio/sealer/utils/ssh"
+
 	"github.com/onsi/gomega"
 	"github.com/onsi/gomega/gexec"
+	"github.com/sirupsen/logrus"
 	"sigs.k8s.io/yaml"
-
-	"github.com/alibaba/sealer/test/testhelper/settings"
-	v1 "github.com/alibaba/sealer/types/api/v1"
-	"github.com/alibaba/sealer/utils"
-	"github.com/alibaba/sealer/utils/ssh"
 )
 
 func GetPwd() string {
@@ -37,10 +41,22 @@ func GetPwd() string {
 	return pwd
 }
 
+func PathExists(path string) (bool, error) {
+	_, err := os.Stat(path)
+	if err == nil {
+		return true, nil
+	}
+	if os.IsNotExist(err) {
+		return false, nil
+	}
+	return false, err
+}
+
 func CreateTempFile() string {
 	dir := os.TempDir()
-	file, err := ioutil.TempFile(dir, "tmpfile")
+	file, err := os.CreateTemp(dir, "tmpfile")
 	CheckErr(err)
+
 	defer CheckErr(file.Close())
 	return file.Name()
 }
@@ -57,24 +73,56 @@ func WriteFile(fileName string, content []byte) error {
 		}
 	}
 
-	if err := ioutil.WriteFile(fileName, content, settings.FileMode0644); err != nil {
-		return err
-	}
-	return nil
+	return os.WriteFile(fileName, content, settings.FileMode0644)
 }
 
 type SSHClient struct {
-	RemoteHostIP string
+	RemoteHostIP net.IP
 	SSH          ssh.Interface
 }
 
-func NewSSHClientByCluster(usedCluster *v1.Cluster) *SSHClient {
-	sshClient, err := ssh.NewSSHClientWithCluster(usedCluster)
+func NewSSHByCluster(cluster *v1.Cluster) ssh.Interface {
+	if cluster.Spec.SSH.User == "" {
+		cluster.Spec.SSH.User = common.ROOT
+	}
+	address, err := utilsnet.GetLocalHostAddresses()
+	if err != nil {
+		logrus.Warnf("failed to get local address, %v", err)
+	}
+	return &ssh.SSH{
+		Encrypted:    cluster.Spec.SSH.Encrypted,
+		User:         cluster.Spec.SSH.User,
+		Password:     cluster.Spec.SSH.Passwd,
+		Port:         cluster.Spec.SSH.Port,
+		PkFile:       cluster.Spec.SSH.Pk,
+		PkPassword:   cluster.Spec.SSH.PkPasswd,
+		LocalAddress: address,
+		AlsoToStdout: true,
+		Fs:           fs.NewFilesystem(),
+	}
+}
+
+func NewSSHClientByCluster(cluster *v1.Cluster) *SSHClient {
+	var (
+		ipList []net.IP
+		host   net.IP
+	)
+	sshClient := NewSSHByCluster(cluster)
+	if cluster.Spec.Provider == common.AliCloud {
+		host = net.ParseIP(cluster.GetAnnotationsByKey(common.Eip))
+		CheckNotEqual(host, "")
+		ipList = append(ipList, host)
+	} else {
+		host = cluster.Spec.Masters.IPList[0]
+		ipList = append(ipList, append(cluster.Spec.Masters.IPList, cluster.Spec.Nodes.IPList...)...)
+	}
+	err := ssh.WaitSSHReady(sshClient, 6, ipList...)
 	CheckErr(err)
 	CheckNotNil(sshClient)
+
 	return &SSHClient{
-		RemoteHostIP: sshClient.Host,
-		SSH:          sshClient.SSH,
+		SSH:          sshClient,
+		RemoteHostIP: host,
 	}
 }
 
@@ -84,7 +132,7 @@ func IsFileExist(filename string) bool {
 }
 
 func UnmarshalYamlFile(file string, obj interface{}) error {
-	data, err := ioutil.ReadFile(filepath.Clean(file))
+	data, err := os.ReadFile(filepath.Clean(file))
 	if err != nil {
 		return err
 	}
@@ -97,16 +145,21 @@ func MarshalYamlToFile(file string, obj interface{}) error {
 	if err != nil {
 		return err
 	}
-	if err = WriteFile(file, data); err != nil {
-		return err
-	}
-	return nil
+	return WriteFile(file, data)
 }
 
-// GetFileDataLocally get file data for cloud apply
-func GetFileDataLocally(filePath string) string {
+// GetLocalFileData get file data from local
+func GetLocalFileData(filePath string) string {
 	cmd := fmt.Sprintf("sudo -E cat %s", filePath)
-	result, err := utils.RunSimpleCmd(cmd)
+	result, err := exec.RunSimpleCmd(cmd)
+	CheckErr(err)
+	return result
+}
+
+// GetRemoteFileData get file data from remote
+func GetRemoteFileData(sshClient *SSHClient, filePath string) []byte {
+	cmd := fmt.Sprintf("cat %s", filePath)
+	result, err := sshClient.SSH.Cmd(sshClient.RemoteHostIP, nil, cmd)
 	CheckErr(err)
 	return result
 }
@@ -114,7 +167,7 @@ func GetFileDataLocally(filePath string) string {
 // DeleteFileLocally delete file for cloud apply
 func DeleteFileLocally(filePath string) {
 	cmd := fmt.Sprintf("sudo -E rm -rf %s", filePath)
-	_, err := utils.RunSimpleCmd(cmd)
+	_, err := exec.RunSimpleCmd(cmd)
 	CheckErr(err)
 }
 

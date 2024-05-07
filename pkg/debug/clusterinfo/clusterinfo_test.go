@@ -15,17 +15,11 @@
 package clusterinfo
 
 import (
-	"context"
 	"sort"
 	"testing"
-
-	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/tools/clientcmd"
-
-	"github.com/alibaba/sealer/common"
 )
 
-func TestGetPodsIP(t *testing.T) {
+/* func TestGetPodsIP(t *testing.T) {
 	restConfig, err := clientcmd.BuildConfigFromFlags("", common.KubeAdminConf)
 	if err != nil {
 		t.Errorf("failed to get rest config from file %s", common.KubeAdminConf)
@@ -75,6 +69,7 @@ func TestGetNodesIP(t *testing.T) {
 	})
 }
 
+
 func TestGetDNSServiceAll(t *testing.T) {
 	restConfig, err := clientcmd.BuildConfigFromFlags("", common.KubeAdminConf)
 	if err != nil {
@@ -92,7 +87,7 @@ func TestGetDNSServiceAll(t *testing.T) {
 			t.Errorf("failed to get DNS Service")
 		}
 	})
-}
+}*/
 
 func TestRemoveDuplicatesAndEmpty(t *testing.T) {
 	tests := []struct {

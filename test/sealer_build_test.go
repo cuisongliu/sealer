@@ -18,129 +18,244 @@ import (
 	"os"
 	"path/filepath"
 
-	. "github.com/onsi/ginkgo"
-	. "github.com/onsi/gomega"
+	"github.com/sealerio/sealer/test/suites/build"
+	"github.com/sealerio/sealer/test/suites/image"
+	"github.com/sealerio/sealer/test/suites/registry"
+	"github.com/sealerio/sealer/test/testhelper"
+	"github.com/sealerio/sealer/test/testhelper/settings"
 
-	"github.com/alibaba/sealer/test/suites/apply"
-	"github.com/alibaba/sealer/test/suites/build"
-	"github.com/alibaba/sealer/test/suites/image"
-	"github.com/alibaba/sealer/test/suites/registry"
-	"github.com/alibaba/sealer/test/testhelper"
-	"github.com/alibaba/sealer/test/testhelper/settings"
+	. "github.com/onsi/ginkgo"
 )
 
 var _ = Describe("sealer build", func() {
-	Context("testing the content of kube file", func() {
-		Context("testing lite build scenario", func() {
 
-			BeforeEach(func() {
-				registry.Login()
-				liteBuildPath := filepath.Join(build.GetFixtures(), build.GetLiteBuildDir())
-				err := os.Chdir(liteBuildPath)
-				testhelper.CheckErr(err)
-				//add From custom image name
-				build.UpdateKubeFromImage(settings.TestImageName, filepath.Join(liteBuildPath, "Kubefile"))
-			})
-			AfterEach(func() {
-				registry.Logout()
-				err := os.Chdir(settings.DefaultTestEnvDir)
-				testhelper.CheckErr(err)
-			})
-
-			It("with all build instruct", func() {
-				imageName := build.GetImageNameTemplate("all_instruct")
-				cmd := build.NewArgsOfBuild().
-					SetKubeFile("Kubefile").
-					SetImageName(imageName).
-					SetContext(".").
-					SetBuildType(settings.LiteBuild).
-					Build()
-				sess, err := testhelper.Start(cmd)
-				testhelper.CheckErr(err)
-				testhelper.CheckExit0(sess, settings.MaxWaiteTime)
-				// check: sealer images whether image exist
-				testhelper.CheckBeTrue(build.CheckIsImageExist(imageName))
-				testhelper.CheckBeTrue(build.CheckClusterFile(imageName))
-				image.DoImageOps(settings.SubCmdForceRmiOfSealer, imageName)
-			})
+	Context("testing build with cmds", func() {
+		BeforeEach(func() {
+			buildPath := filepath.Join(build.WithCmdsBuildDir())
+			err := os.Chdir(buildPath)
+			testhelper.CheckErr(err)
+		})
+		AfterEach(func() {
+			err := os.Chdir(settings.DefaultTestEnvDir)
+			testhelper.CheckErr(err)
 		})
 
-		Context("testing cloud build scenario", func() {
-			BeforeEach(func() {
-				registry.Login()
-				cloudBuildPath := filepath.Join(build.GetFixtures(), build.GetCloudBuildDir())
-				err := os.Chdir(cloudBuildPath)
-				testhelper.CheckErr(err)
-				//add From custom image name
-				build.UpdateKubeFromImage(settings.TestImageName, filepath.Join(cloudBuildPath, "Kubefile"))
-			})
-			AfterEach(func() {
-				registry.Logout()
-				err := os.Chdir(settings.DefaultTestEnvDir)
-				testhelper.CheckErr(err)
-			})
+		It("start to build with cmds", func() {
+			imageName := build.GetBuildImageName()
+			cmd := build.NewArgsOfBuild().
+				SetKubeFile("Kubefile").
+				SetImageName(imageName).
+				SetContext(".").
+				String()
+			sess, err := testhelper.Start(cmd)
+			testhelper.CheckErr(err)
+			testhelper.CheckExit0(sess, settings.MaxWaiteTime)
 
-			It("with all build instruct", func() {
-				imageName := build.GetTestImageName()
-				cmd := build.NewArgsOfBuild().
-					SetKubeFile("Kubefile").
-					SetImageName(imageName).
-					SetContext(".").
-					SetBuildType("cloud").
-					Build()
-				sess, err := testhelper.Start(cmd)
-				defer func() {
-					if testhelper.IsFileExist(settings.TMPClusterFile) {
-						cluster := apply.LoadClusterFileFromDisk(settings.TMPClusterFile)
-						apply.CleanUpAliCloudInfra(cluster)
-						testhelper.DeleteFileLocally(settings.TMPClusterFile)
-					}
-				}()
-				testhelper.CheckErr(err)
-				testhelper.CheckExit0(sess, settings.MaxWaiteTime)
-				// check: need to pull build image and check whether image exist
-				image.DoImageOps(settings.SubCmdPullOfSealer, imageName)
-				Expect(build.CheckIsImageExist(imageName)).Should(BeTrue())
-				Expect(build.CheckClusterFile(imageName)).Should(BeTrue())
-				image.DoImageOps(settings.SubCmdForceRmiOfSealer, imageName)
-			})
+			// check: sealer images whether image exist
+			testhelper.CheckBeTrue(build.CheckIsImageExist(imageName))
+
+			//TODO check image spec content
+			// 1. launch cmds
+			// 2. containerImageList:
+			//docker.io/library/nginx:alpine
+			//docker.io/library/busybox:latest
+
+			// clean: build image
+			image.DoImageOps("rmi", imageName)
+		})
+
+	})
+
+	Context("testing build with launch", func() {
+		BeforeEach(func() {
+			buildPath := filepath.Join(build.WithLaunchBuildDir())
+			err := os.Chdir(buildPath)
+			testhelper.CheckErr(err)
+		})
+		AfterEach(func() {
+			err := os.Chdir(settings.DefaultTestEnvDir)
+			testhelper.CheckErr(err)
+		})
+
+		It("start to build with launch", func() {
+			imageName := build.GetBuildImageName()
+			cmd := build.NewArgsOfBuild().
+				SetKubeFile("Kubefile").
+				SetImageName(imageName).
+				SetContext(".").
+				String()
+			sess, err := testhelper.Start(cmd)
+			testhelper.CheckErr(err)
+			testhelper.CheckExit0(sess, settings.MaxWaiteTime)
+
+			// check: sealer images whether image exist
+			testhelper.CheckBeTrue(build.CheckIsImageExist(imageName))
+
+			//TODO check image spec content
+			// 1. launch app names
+			// 2. containerImageList:
+			//docker.io/library/nginx:alpine
+			//docker.io/library/busybox:latest
+
+			// clean: build image
+			image.DoImageOps("rmi", imageName)
+		})
+
+	})
+
+	Context("testing build with app cmds", func() {
+		BeforeEach(func() {
+			buildPath := filepath.Join(build.WithAPPCmdsBuildDir())
+			err := os.Chdir(buildPath)
+			testhelper.CheckErr(err)
+		})
+		AfterEach(func() {
+			err := os.Chdir(settings.DefaultTestEnvDir)
+			testhelper.CheckErr(err)
+		})
+
+		It("start to build with app cmds", func() {
+			imageName := build.GetBuildImageName()
+			cmd := build.NewArgsOfBuild().
+				SetKubeFile("Kubefile").
+				SetImageName(imageName).
+				SetContext(".").
+				String()
+			sess, err := testhelper.Start(cmd)
+			testhelper.CheckErr(err)
+			testhelper.CheckExit0(sess, settings.MaxWaiteTime)
+
+			// check: sealer images whether image exist
+			testhelper.CheckBeTrue(build.CheckIsImageExist(imageName))
+
+			//TODO check image spec content
+			// 1. launch app names
+			// 2. launch app cmds:
+
+			// clean: build image
+			image.DoImageOps("rmi", imageName)
+		})
+
+	})
+
+	Context("testing build with --image-list flag", func() {
+		BeforeEach(func() {
+			buildPath := filepath.Join(build.WithImageListFlagBuildDir())
+			err := os.Chdir(buildPath)
+			testhelper.CheckErr(err)
+		})
+		AfterEach(func() {
+			err := os.Chdir(settings.DefaultTestEnvDir)
+			testhelper.CheckErr(err)
+		})
+
+		It("start to build with --image-list flag", func() {
+			imageName := build.GetBuildImageName()
+			cmd := build.NewArgsOfBuild().
+				SetKubeFile("Kubefile").
+				SetImageName(imageName).
+				SetImageList("imagelist").
+				SetContext(".").
+				String()
+			sess, err := testhelper.Start(cmd)
+			testhelper.CheckErr(err)
+			testhelper.CheckExit0(sess, settings.MaxWaiteTime)
+
+			// check: sealer images whether image exist
+			testhelper.CheckBeTrue(build.CheckIsImageExist(imageName))
+
+			//TODO check image spec content
+			// 2. containerImageList:
+			//docker.io/library/nginx:alpine
+			//docker.io/library/busybox:latest
+
+			// clean: build image
+			image.DoImageOps("rmi", imageName)
+		})
+
+	})
+
+	Context("testing multi platform build scenario", func() {
+
+		BeforeEach(func() {
+			registry.Login()
+			buildPath := filepath.Join(build.WithMultiArchBuildDir())
+			err := os.Chdir(buildPath)
+			testhelper.CheckErr(err)
+
+		})
+		AfterEach(func() {
+			registry.Logout()
+			err := os.Chdir(settings.DefaultTestEnvDir)
+			testhelper.CheckErr(err)
+		})
+
+		It("multi build only with amd64", func() {
+			imageName := build.GetBuildImageName()
+			cmd := build.NewArgsOfBuild().
+				SetKubeFile("Kubefile").
+				SetImageName(imageName).
+				SetPlatforms([]string{"linux/amd64"}).
+				SetContext(".").
+				String()
+			sess, err := testhelper.Start(cmd)
+
+			testhelper.CheckErr(err)
+			testhelper.CheckExit0(sess, settings.MaxWaiteTime)
+
+			// check: sealer images whether image exist
+			testhelper.CheckBeTrue(build.CheckIsImageExist(imageName))
+
+			// check: push build image
+			image.DoImageOps("push", imageName)
+
+			// clean: build image
+			image.DoImageOps("rmi", imageName)
 
 		})
 
-		/*		Context("testing container build scenario", func() {
-				BeforeEach(func() {
-					registry.Login()
-					cloudBuildPath := filepath.Join(build.GetFixtures(), build.GetContainerBuildDir())
-					err := os.Chdir(cloudBuildPath)
-					Expect(err).NotTo(HaveOccurred())
-					//add From custom image name
-					build.UpdateKubeFromImage(settings.TestImageName, filepath.Join(cloudBuildPath, "Kubefile"))
-					apply.CheckDockerAndSwapOff()
-				})
-				AfterEach(func() {
-					registry.Logout()
-					err := os.Chdir(settings.DefaultTestEnvDir)
-					Expect(err).NotTo(HaveOccurred())
-				})
+		It("multi build only with arm64", func() {
+			imageName := build.GetBuildImageName()
+			cmd := build.NewArgsOfBuild().
+				SetKubeFile("Kubefile").
+				SetImageName(imageName).
+				SetPlatforms([]string{"linux/arm64"}).
+				SetContext(".").
+				String()
+			sess, err := testhelper.Start(cmd)
+			testhelper.CheckErr(err)
+			testhelper.CheckExit0(sess, settings.MaxWaiteTime)
+			// check: sealer images whether image exist
+			testhelper.CheckBeTrue(build.CheckIsMultiArchImageExist(imageName))
 
-				It("with all build instruct", func() {
-					imageName := build.GetImageNameTemplate("container")
-					cmd := build.NewArgsOfBuild().
-						SetKubeFile("Kubefile").
-						SetImageName(imageName).
-						SetContext(".").
-						SetBuildType("container").
-						Build()
-					sess, err := testhelper.Start(cmd)
-					Expect(err).NotTo(HaveOccurred())
-					Eventually(sess, settings.MaxWaiteTime).Should(Exit(0))
-					Expect(build.CheckIsImageExist(imageName)).Should(BeTrue())
-					Expect(build.CheckClusterFile(imageName)).Should(BeTrue())
-					image.DoImageOps(settings.SubCmdForceRmiOfSealer, imageName)
-					image.DoImageOps(settings.SubCmdForceRmiOfSealer, settings.TestImageName)
-				})
+			// check: push build image
+			image.DoImageOps("push", imageName)
 
-			})*/
+			// clean: build image
+			image.DoImageOps("rmi", imageName)
+		})
+
+		It("multi build with amd64 and arm64", func() {
+			imageName := build.GetBuildImageName()
+			cmd := build.NewArgsOfBuild().
+				SetKubeFile("Kubefile").
+				SetImageName(imageName).
+				SetPlatforms([]string{"linux/amd64", "linux/arm64"}).
+				SetContext(".").
+				String()
+			sess, err := testhelper.Start(cmd)
+			testhelper.CheckErr(err)
+			testhelper.CheckExit0(sess, settings.MaxWaiteTime)
+			// check: sealer images whether image exist
+			testhelper.CheckBeTrue(build.CheckIsMultiArchImageExist(imageName))
+
+			// check: push build image
+			image.DoImageOps("push", imageName)
+
+			// clean: build image
+			image.DoImageOps("rmi", imageName)
+		})
+
 	})
 
 })

@@ -22,10 +22,15 @@
 
 
 export GO111MODULE=on
-
+set -x
 SEALER_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
 export THIS_PLATFORM_BIN="${SEALER_ROOT}/_output/bin"
 export THIS_PLATFORM_ASSETS="${SEALER_ROOT}/_output/assets"
+
+# fix containers dependency issue
+# https://github.com/containers/image/pull/271/files
+# for btrfs, we just use overlay at present, so there is no need to include btrfs, otherwise we need fix some lib problems
+GO_BUILD_FLAGS="containers_image_openpgp exclude_graphdriver_devicemapper exclude_graphdriver_btrfs"
 
 debug() {
   timestamp=$(date +"[%m%d %H:%M:%S]")
@@ -37,7 +42,7 @@ debug() {
 }
 
 get_version_vars() {
-  GIT_VERSION=latest
+  GIT_VERSION=unknown
   if [[ $GIT_TAG ]]; then
     GIT_VERSION=$GIT_TAG
   fi
@@ -73,7 +78,7 @@ ldflags() {
   echo "${ldflags[*]-}"
 }
 
-readonly SEALER_GO_PACKAGE=github.com/alibaba/sealer
+readonly SEALER_GO_PACKAGE=github.com/sealerio/sealer
 # The server platform we are building on.
 readonly SEALER_SUPPORTED_PLATFORMS=(
   linux/amd64
@@ -99,7 +104,7 @@ build_binaries() {
   tarFile="${GIT_VERSION}-${1-}-${2-}.tar.gz"
 
   debug "!!! build $osarch sealer"
-  GOOS=${1-} GOARCH=${2-} go build -o $THIS_PLATFORM_BIN/sealer/$osarch/sealer -mod vendor -ldflags "$goldflags"  $SEALER_ROOT/sealer/main.go
+  GOOS=${1-} GOARCH=${2-} go build -tags "${GO_BUILD_FLAGS}" -o $THIS_PLATFORM_BIN/sealer/$osarch/sealer -mod vendor -ldflags "$goldflags"  $SEALER_ROOT/cmd/sealer/main.go
   check $? "build $osarch sealer"
   debug "output bin: $THIS_PLATFORM_BIN/sealer/$osarch/sealer"
   cd ${SEALER_ROOT}/_output/bin/sealer/$osarch/
@@ -110,7 +115,7 @@ build_binaries() {
   debug "output sha256sum: $THIS_PLATFORM_ASSETS/sealer-$tarFile.sha256sum"
 
   debug "!!! build $osarch seautil"
-  GOOS=${1-} GOARCH=${2-} go build -o $THIS_PLATFORM_BIN/seautil/$osarch/seautil -mod vendor -ldflags "$goldflags"  $SEALER_ROOT/seautil/main.go
+  GOOS=${1-} GOARCH=${2-} go build -o $THIS_PLATFORM_BIN/seautil/$osarch/seautil -mod vendor -ldflags "$goldflags"  $SEALER_ROOT/cmd/seautil/main.go
   check $? "build $osarch seautil"
   debug "output bin: $THIS_PLATFORM_BIN/seautil/$osarch/seautil"
   cd ${SEALER_ROOT}/_output/bin/seautil/$osarch/
@@ -119,6 +124,17 @@ build_binaries() {
   mv *.tar.gz*  $THIS_PLATFORM_ASSETS/
   debug "output tar.gz: $THIS_PLATFORM_ASSETS/seautil-$tarFile"
   debug "output sha256sum: $THIS_PLATFORM_ASSETS/seautil-$tarFile.sha256sum"
+
+  debug "!!! build $osarch dist-receiver"
+  GOOS=${1-} GOARCH=${2-} go build -o $THIS_PLATFORM_BIN/dist-receiver/$osarch/dist-receiver -mod vendor -ldflags "$goldflags"  $SEALER_ROOT/cmd/dist-receiver/main.go
+  check $? "build $osarch dist-receiver"
+  debug "output bin: $THIS_PLATFORM_BIN/dist-receiver/$osarch/dist-receiver"
+  cd ${SEALER_ROOT}/_output/bin/dist-receiver/$osarch/
+  tar czf dist-receiver-$tarFile dist-receiver
+  sha256sum dist-receiver-$tarFile > dist-receiver-$tarFile.sha256sum
+  mv *.tar.gz*  $THIS_PLATFORM_ASSETS/
+  debug "output tar.gz: $THIS_PLATFORM_ASSETS/dist-receiver-$tarFile"
+  debug "output sha256sum: $THIS_PLATFORM_ASSETS/dist-receiver-$tarFile.sha256sum"
 
 }
 

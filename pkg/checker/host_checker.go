@@ -16,19 +16,20 @@ package checker
 
 import (
 	"fmt"
+	"net"
 	"strconv"
 	"time"
 
-	v2 "github.com/alibaba/sealer/types/api/v2"
+	v2 "github.com/sealerio/sealer/types/api/v2"
 
-	"github.com/alibaba/sealer/utils/ssh"
+	"github.com/sealerio/sealer/utils/ssh"
 )
 
 type HostChecker struct {
 }
 
 func (a HostChecker) Check(cluster *v2.Cluster, phase string) error {
-	var ipList []string
+	var ipList []net.IP
 	for _, hosts := range cluster.Spec.Hosts {
 		ipList = append(ipList, hosts.IPS...)
 	}
@@ -39,47 +40,43 @@ func (a HostChecker) Check(cluster *v2.Cluster, phase string) error {
 	return checkTimeSync(cluster, ipList)
 }
 
-func NewHostChecker() Interface {
-	return &HostChecker{}
-}
-
-func checkHostnameUnique(cluster *v2.Cluster, ipList []string) error {
+func checkHostnameUnique(cluster *v2.Cluster, ipList []net.IP) error {
 	hostnameList := map[string]bool{}
 	for _, ip := range ipList {
 		s, err := ssh.GetHostSSHClient(ip, cluster)
 		if err != nil {
-			return fmt.Errorf("checker: failed to get host %s client,%v", ip, err)
+			return fmt.Errorf("checker: failed to get ssh client of host(%s): %v", ip, err)
 		}
-		hostname, err := s.CmdToString(ip, "hostname", "")
+		hostname, err := s.CmdToString(ip, nil, "hostname", "")
 		if err != nil {
-			return fmt.Errorf("checker: failed to get host %s hostname, %v", ip, err)
+			return fmt.Errorf("checker: failed to get hostname of host(%s): %v", ip, err)
 		}
 		if hostnameList[hostname] {
-			return fmt.Errorf("checker: hostname cannot be repeated, please set diffent hostname")
+			return fmt.Errorf("checker: hostname of host(%s) cannot be repeated, please set diffent hostname", ip)
 		}
 		hostnameList[hostname] = true
 	}
 	return nil
 }
 
-//Check whether the node time is synchronized
-func checkTimeSync(cluster *v2.Cluster, ipList []string) error {
+// Check whether the node time is synchronized
+func checkTimeSync(cluster *v2.Cluster, ipList []net.IP) error {
 	for _, ip := range ipList {
 		s, err := ssh.GetHostSSHClient(ip, cluster)
 		if err != nil {
-			return fmt.Errorf("checker: failed to get host %s client,%v", ip, err)
+			return fmt.Errorf("checker: failed to get ssh client of host(%s): %v", ip, err)
 		}
-		timeStamp, err := s.CmdToString(ip, "date +%s", "")
+		timeStamp, err := s.CmdToString(ip, nil, "date +%s", "")
 		if err != nil {
-			return fmt.Errorf("checker: failed to get %s timestamp, %v", ip, err)
+			return fmt.Errorf("checker: failed to get timestamp of host(%s): %v", ip, err)
 		}
 		ts, err := strconv.Atoi(timeStamp)
 		if err != nil {
-			return fmt.Errorf("checker: failed to reverse timestamp %s, %v", timeStamp, err)
+			return fmt.Errorf("checker: failed to reverse timestamp %s of host(%s): %v", timeStamp, ip, err)
 		}
 		timeDiff := time.Since(time.Unix(int64(ts), 0)).Minutes()
 		if timeDiff < -1 || timeDiff > 1 {
-			return fmt.Errorf("checker: the time of %s node is not synchronized", ip)
+			return fmt.Errorf("checker: time of host(%s) is not synchronized", ip)
 		}
 	}
 	return nil

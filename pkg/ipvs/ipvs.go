@@ -15,71 +15,59 @@
 package ipvs
 
 import (
-	"strings"
+	"fmt"
+	"path"
 
-	"github.com/pkg/errors"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/client-go/kubernetes/scheme"
+	"sigs.k8s.io/yaml"
 
-	"github.com/alibaba/sealer/logger"
+	"github.com/sealerio/sealer/common"
 )
 
 const (
-	LvsCareStaticPodName = "kube-lvscare"
-	LvsCareCommand       = "/usr/bin/lvscare"
-	DefaultLvsCareImage  = "sea.hub:5000/fanux/lvscare:latest"
+	LvsCareCommand = "/usr/bin/lvscare"
 )
 
-// return lvs care static pod yaml
-func LvsStaticPodYaml(vip string, masters []string, image string) string {
-	if vip == "" || len(masters) == 0 {
-		return ""
+func GetCreateLvscareStaticPodCmd(content, fileName string) string {
+	return fmt.Sprintf("mkdir -p %s && echo \"%s\" > %s",
+		common.StaticPodDir,
+		content,
+		path.Join(common.StaticPodDir, fileName),
+	)
+}
+
+// LvsStaticPodYaml return lvs care static pod yaml
+func LvsStaticPodYaml(podName, virtualEndpoint string, realEndpoints []string, image string,
+	healthPath string, healthSchem string) (string, error) {
+	if virtualEndpoint == "" || len(realEndpoints) == 0 || image == "" {
+		return "", fmt.Errorf("invalid args to create Lvs static pod")
 	}
-	if image == "" {
-		image = DefaultLvsCareImage
-	}
-	args := []string{"care", "--vs", vip + ":6443", "--health-path", "/healthz", "--health-schem", "https"}
-	for _, m := range masters {
-		if strings.Contains(m, ":") {
-			m = strings.Split(m, ":")[0]
-		}
-		args = append(args, "--rs")
-		args = append(args, m+":6443")
+
+	args := []string{"care", "--vs", virtualEndpoint, "--health-path", healthPath, "--health-schem", healthSchem}
+	for _, re := range realEndpoints {
+		args = append(args, "--rs", re)
 	}
 	flag := true
-	pod := componentPod(v1.Container{
-		Name:            LvsCareStaticPodName,
+	pod := componentPod(podName, v1.Container{
+		Name:            "main",
 		Image:           image,
 		Command:         []string{LvsCareCommand},
 		Args:            args,
 		ImagePullPolicy: v1.PullIfNotPresent,
 		SecurityContext: &v1.SecurityContext{Privileged: &flag},
 	})
-	yaml, err := podToYaml(pod)
+
+	yml, err := yaml.Marshal(pod)
 	if err != nil {
-		logger.Error("decode lvs care static pod yaml failed %s", err)
-		return ""
-	}
-	return string(yaml)
-}
-
-func podToYaml(pod v1.Pod) ([]byte, error) {
-	codecs := scheme.Codecs
-	gv := v1.SchemeGroupVersion
-	const mediaType = runtime.ContentTypeYAML
-	info, ok := runtime.SerializerInfoForMediaType(codecs.SupportedMediaTypes(), mediaType)
-	if !ok {
-		return []byte{}, errors.Errorf("unsupported media type %q", mediaType)
+		return "", fmt.Errorf("failed to decode lvs care static pod yaml: %s", err)
 	}
 
-	encoder := codecs.EncoderForVersion(info.Serializer, gv)
-	return runtime.Encode(encoder, &pod)
+	return string(yml), nil
 }
 
 // componentPod returns a Pod object from the container and volume specifications
-func componentPod(container v1.Container) v1.Pod {
+func componentPod(podName string, container v1.Container) v1.Pod {
 	hostPathType := v1.HostPathUnset
 	mountName := "lib-modules"
 	volumes := []v1.Volume{
@@ -100,7 +88,7 @@ func componentPod(container v1.Container) v1.Pod {
 			Kind:       "Pod",
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      container.Name,
+			Name:      podName,
 			Namespace: metav1.NamespaceSystem,
 		},
 		Spec: v1.PodSpec{

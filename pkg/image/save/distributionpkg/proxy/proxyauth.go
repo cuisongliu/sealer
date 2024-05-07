@@ -16,13 +16,14 @@ package proxy
 
 import (
 	"crypto/tls"
+	"io"
 	"net/http"
 	"net/url"
 	"strings"
 
-	"github.com/alibaba/sealer/logger"
 	"github.com/distribution/distribution/v3/registry/client/auth"
 	"github.com/distribution/distribution/v3/registry/client/auth/challenge"
+	"github.com/sirupsen/logrus"
 )
 
 // comment this const because not used
@@ -78,7 +79,7 @@ func getAuthURLs(remoteURL string) ([]string, error) {
 	resp, err := http.Get(remoteURL + "/v2/")
 	if err != nil {
 		if strings.Contains(err.Error(), certUnknown) {
-			logger.Warn("create connect with unauthenticated registry url: %s", remoteURL)
+			logrus.Warnf("create connect with unauthenticated registry url: %s", remoteURL)
 			resp, err = newClientSkipVerify().Get(remoteURL + "/v2/")
 			if err != nil {
 				return nil, err
@@ -87,7 +88,12 @@ func getAuthURLs(remoteURL string) ([]string, error) {
 			return nil, err
 		}
 	}
-	defer resp.Body.Close()
+	defer func(Body io.ReadCloser) {
+		err := Body.Close()
+		if err != nil {
+			logrus.Warnf("failed to close http reader")
+		}
+	}(resp.Body)
 
 	for _, c := range challenge.ResponseChallenges(resp) {
 		if strings.EqualFold(c.Scheme, "bearer") {

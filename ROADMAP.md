@@ -1,51 +1,42 @@
-# Sealer roadmap
+# sealer Roadmap
 
-## v0.1.3
+## Improve the basic capabilities of the Sealer Image
 
-* general e2e tests
-* support build, apply and push a CloudImage
+* Multi-architecture/hybrid architecture support
+* Easy-to-use image caching capabilities with no intrusion
+* Provide better `Sealer Image` collaboration mechanisms
+  * open the `Sealer Image` Repo project
+  * contains most of the common open source middleware and kxs runtime(not provided by the Sealer community)
 
-## v0.2.0
+## Focus the core of distributed application definition
 
-* support cluster ENV and global config
-* support ARM base image
-* registry cache docker image when pull images
-* base image support more kubernetes versions and auto make rootfs
-* official dashboard image
-* image merge feature
+* Keep exploring reducing complexity of k8s-based distributed application definition
+* Support the full life cycle management of application and decoupled from the kxs runtime
+* Support more built-in application types
+  * contains common application types including helm chart, kube resource, OAM, etc
+  * provide extensibility, supports user-defined extended app types
+* Support ClusterImage on more heterogeneous infrastucture:
+  * general OS and arch
+  * general existing Kubernetes
 
-## future versions
+## Build stable and easy-to-use cluster delivery capabilities
 
-* cluster upgrade, backup, and restore
-* application upgrade
-* multi cloud provider
-* multi runtime
-* rootfs mount filesystem
-* sealer hub UI
+* support for large-scale cluster life cycle management, such as 3K nodes
+* support for managed existing clusters
+* support more kxs runtime support, such as k8s, k0s, k3s, etc
+* support IAAS diagnostic capabilities, provider cluster pre-installation check tools
 
-## official registry opensource cloud images
+## Sealer spec Definition Stabilization
 
-* [ ] [dashboard](https://github.com/kubernetes/dashboard)
-* [ ] [prometheus stack](https://github.com/prometheus-operator/kube-prometheus)
-* [ ] loki stack
-* [ ] mysql
-* [ ] redis
-* [ ] rocketmq
-* [ ] zookeeper
-* [ ] minio
-* [ ] openEBS
-* [ ] rook ceph
-* [ ] kubeflow
-* [ ] kafka
-* [ ] cassandra
-* [ ] cockroachDB
-* [ ] postgreSQL
-* [ ] tiDB
-* [ ] istio
-* [ ] dapr
-* [ ] ingress
-* [ ] gitea/drone/harbor, devops stack
+* Kubefile stabilization
+* Clusterfile stabilization
+* ClusterImage spec stabilization
+  * define Kubernetes part and application part separately
+  * protocol stabilization among sealer binary, basefs and cluster instance
 
-## LONG*TERM
+## Performance Improvement
 
+* Improve `Sealer Image` distribution efficiency as possible
+* Improves `sealer build` efficiency as possible through caching and other capabilities
+* Improve cluster bootstrap efficiency as possible
 

@@ -18,10 +18,13 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/alibaba/sealer/common"
-	"github.com/alibaba/sealer/pkg/image/distributionutil"
-	v2 "github.com/alibaba/sealer/types/api/v2"
-	"github.com/alibaba/sealer/utils"
+	osi "github.com/sealerio/sealer/utils/os"
+
+	"github.com/sealerio/sealer/pkg/client/docker/auth"
+
+	"github.com/sealerio/sealer/common"
+	"github.com/sealerio/sealer/pkg/image/distributionutil"
+	v2 "github.com/sealerio/sealer/types/api/v2"
 )
 
 type RegistryChecker struct {
@@ -35,22 +38,23 @@ func (r *RegistryChecker) Check(cluster *v2.Cluster, phase string) error {
 
 	// checker the existence of the docker.json ;
 	authFile := common.DefaultRegistryAuthConfigDir()
-	if !utils.IsFileExist(authFile) {
+	if !osi.IsFileExist(authFile) {
 		return fmt.Errorf("registry auth info not found,please run 'sealer login' first")
 	}
-	// try to login with auth info
-	authConfig, err := utils.GetDockerAuthInfoFromDocker(r.RegistryDomain)
+	// try to log in with auth info
+	svc, err := auth.NewDockerAuthService()
+	if err != nil {
+		return fmt.Errorf("failed to read default auth file %s: %v", authFile, err)
+	}
+
+	authConfig, err := svc.GetAuthByDomain(r.RegistryDomain)
 	if err != nil {
 		return fmt.Errorf("failed to get auth info, err: %s", err)
 	}
 
 	err = distributionutil.Login(context.Background(), &authConfig)
 	if err != nil {
-		return fmt.Errorf("%v authentication failed", r.RegistryDomain)
+		return fmt.Errorf("failed to login %v: %v", r.RegistryDomain, err)
 	}
 	return nil
-}
-
-func NewRegistryChecker(registryDomain string) Interface {
-	return &RegistryChecker{RegistryDomain: registryDomain}
 }

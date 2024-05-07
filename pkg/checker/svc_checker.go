@@ -15,14 +15,16 @@
 package checker
 
 import (
+	"fmt"
 	"text/template"
 
 	corev1 "k8s.io/api/core/v1"
 
-	"github.com/alibaba/sealer/common"
-	"github.com/alibaba/sealer/logger"
-	"github.com/alibaba/sealer/pkg/client/k8s"
-	v2 "github.com/alibaba/sealer/types/api/v2"
+	"github.com/sirupsen/logrus"
+
+	"github.com/sealerio/sealer/common"
+	"github.com/sealerio/sealer/pkg/client/k8s"
+	v2 "github.com/sealerio/sealer/types/api/v2"
 )
 
 type SvcChecker struct {
@@ -45,7 +47,7 @@ func (n *SvcChecker) Check(cluster *v2.Cluster, phase string) error {
 		return nil
 	}
 	// checker if all the node is ready
-	c, err := k8s.Newk8sClient()
+	c, err := k8s.NewK8sClient()
 	if err != nil {
 		return err
 	}
@@ -105,8 +107,8 @@ func (n *SvcChecker) Output(svcNamespaceStatusList []*SvcNamespaceStatus) error 
 	t = template.Must(t, err)
 	err = t.Execute(common.StdOut, svcNamespaceStatusList)
 	if err != nil {
-		logger.Error("service checkers template can not excute %s", err)
-		return err
+		logrus.Errorf("service checkers template can not be executed: %s", err)
+		return fmt.Errorf("service checkers template can not be executed: %s", err)
 	}
 	return nil
 }
